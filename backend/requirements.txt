@@ -37,3 +37,4 @@ python-multipart==0.0.32
 psycopg[binary]==3.3.7
 
 supabase==2.33.0
+androguard==4.1.4
