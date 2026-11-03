@@ -1,0 +1,19 @@
+{
+  "module": "Credit Card Fraud Detection",
+  "algorithm": "Random Forest",
+  "n_estimators": 150,
+  "class_weight": "balanced_subsample",
+  "input_features": 30,
+  "positive_class": 1,
+  "label_mapping": {
+    "0": "Legitimate transaction",
+    "1": "Fraudulent transaction"
+  },
+  "dataset": "Kaggle Credit Card Fraud Detection (mlg-ulb/creditcardfraud)",
+  "threshold_selection": "Selected using validation data",
+  "limitations": [
+    "Trained on a historical dataset; real-world performance may differ.",
+    "This is a decision-support model, not a guarantee of fraud detection.",
+    "Input features must match the dataset feature definitions and order."
+  ]
+}

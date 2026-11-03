@@ -1,0 +1,12 @@
+[
+  "url_length",
+  "num_dots",
+  "has_https",
+  "has_ip",
+  "num_subdirs",
+  "num_params",
+  "suspicious_words",
+  "special_char_count",
+  "digits_count",
+  "entropy"
+]

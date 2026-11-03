@@ -1,0 +1,14 @@
+{
+    "project": "CyberFusion",
+    "module": "Android Malware Static Analysis",
+    "dataset": "Droidware Android Malware Dataset",
+    "records": 265423,
+    "input_features": 68,
+    "label_column": "Label",
+    "label_mapping": {
+        "0": "Benign",
+        "1": "Malware"
+    },
+    "selected_candidate": "Extra Trees",
+    "selection_basis": "Validation F1 approximately tied with Random Forest; lower training time"
+}

@@ -1,0 +1,6 @@
+{
+    "positive_class": 1,
+    "positive_class_name": "Phishing Email",
+    "threshold": 0.5129960566818625,
+    "selection_method": "Maximum F1-score on validation set"
+}

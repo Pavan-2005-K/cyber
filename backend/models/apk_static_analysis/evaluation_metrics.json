@@ -1,0 +1,9 @@
+{
+    "accuracy": 0.9748,
+    "precision_malware": 0.9786,
+    "recall_malware": 0.9675,
+    "f1_malware": 0.9731,
+    "roc_auc": 0.9954,
+    "training_time_seconds": 82.62,
+    "test_records": 39814
+}

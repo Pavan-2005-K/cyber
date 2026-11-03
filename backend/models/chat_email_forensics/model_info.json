@@ -1,0 +1,21 @@
+{
+    "model_name": "Chat and Email Forensics - SMS Spam Classifier",
+    "algorithm": "TF-IDF + Logistic Regression",
+    "dataset": "UCI SMS Spam Collection",
+    "cleaned_dataset_samples": 5169,
+    "training_samples": 3618,
+    "validation_samples": 775,
+    "testing_samples": 776,
+    "classes": [
+        "Ham (Legitimate)",
+        "Spam"
+    ],
+    "ngram_range": [
+        1,
+        2
+    ],
+    "max_features": 10000,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "scope": "SMS spam classification; email performance not yet evaluated"
+}

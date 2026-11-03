@@ -1,0 +1,19 @@
+{
+    "module_name": "Fake Email Detection",
+    "vectorizer": "TfidfVectorizer",
+    "lowercase": true,
+    "strip_accents": "unicode",
+    "ngram_range": [
+        1,
+        2
+    ],
+    "max_features": 100000,
+    "sublinear_tf": true,
+    "min_df": 2,
+    "max_df": 0.98,
+    "classifier": "LogisticRegression",
+    "class_mapping": {
+        "0": "Safe Email",
+        "1": "Phishing Email"
+    }
+}

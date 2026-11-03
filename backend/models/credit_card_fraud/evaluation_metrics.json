@@ -1,0 +1,20 @@
+{
+  "model": "RandomForestClassifier",
+  "threshold": 0.15,
+  "test_accuracy": 0.9993890833901172,
+  "test_precision_fraud": 0.8461538461538461,
+  "test_recall_fraud": 0.7746478873239436,
+  "test_f1_fraud": 0.8088235294117647,
+  "test_average_precision": 0.7899740885514197,
+  "test_roc_auc": 0.9414363226998974,
+  "test_true_negatives": 42478,
+  "test_false_positives": 10,
+  "test_false_negatives": 16,
+  "test_true_positives": 55,
+  "test_transactions": 42559,
+  "training_rows": 198608,
+  "validation_rows": 42559,
+  "test_rows": 42559,
+  "random_state": 42,
+  "sklearn_version": "1.6.1"
+}

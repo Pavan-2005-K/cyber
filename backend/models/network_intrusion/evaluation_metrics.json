@@ -1,0 +1,22 @@
+{
+  "test_accuracy": 0.9998675408967481,
+  "test_average_precision": 0.9999845074171027,
+  "test_roc_auc": 0.9999995269083706,
+  "attack_precision": 1.0,
+  "attack_recall": 0.9960552268244576,
+  "attack_f1_score": 0.9980237154150198,
+  "confusion_matrix": [
+    [
+      14592,
+      0
+    ],
+    [
+      2,
+      505
+    ]
+  ],
+  "decision_threshold": 0.5,
+  "test_records": 15099,
+  "test_attack_records": 507,
+  "note": "Metrics are specific to the KDD Cup 99 test split and are not a guarantee of real-world performance."
+}

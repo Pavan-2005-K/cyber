@@ -1,0 +1,23 @@
+{
+  "dataset": "LogHub HDFS",
+  "evaluation_split": "Stratified 15% test split",
+  "test_records": 86260,
+  "test_normal_records": 83734,
+  "test_anomaly_records": 2526,
+  "metrics": {
+    "accuracy": 0.9999304428472061,
+    "average_precision": 0.9995695673807958,
+    "roc_auc": 0.9999932013340666,
+    "precision": 0.9984177215189873,
+    "recall": 0.9992082343626286,
+    "f1_score": 0.998812821527503,
+    "threshold": 0.5666666666666667
+  },
+  "confusion_matrix": {
+    "true_negative": 83730,
+    "false_positive": 4,
+    "false_negative": 2,
+    "true_positive": 2524
+  },
+  "note": "Results are specific to this dataset and split. Real-world performance requires independent evaluation."
+}

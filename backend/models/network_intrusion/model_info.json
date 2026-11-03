@@ -1,0 +1,13 @@
+{
+  "module": "network_intrusion",
+  "model_type": "RandomForestClassifier",
+  "n_estimators": 150,
+  "class_weight": "balanced_subsample",
+  "random_state": 42,
+  "input_feature_count": 41,
+  "processed_feature_count": 92,
+  "training_records": 70457,
+  "validation_records": 15099,
+  "test_records": 15099,
+  "threshold": 0.5
+}

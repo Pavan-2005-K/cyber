@@ -1,0 +1,16 @@
+{
+    "module": "CyberFusion Module 12",
+    "model_name": "Fake Email Detection",
+    "algorithm": "TF-IDF + Logistic Regression",
+    "trained_at_utc": "2026-10-28T11:52:18.142157+00:00",
+    "training_samples": 12265,
+    "validation_samples": 2628,
+    "test_samples": 2629,
+    "random_state": 42,
+    "input_type": "Email text",
+    "limitations": [
+        "Classifies email text; does not independently verify sender identity.",
+        "Does not parse .eml headers or inspect attachments.",
+        "Performance on real-world emails may differ from dataset results."
+    ]
+}

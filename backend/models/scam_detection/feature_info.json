@@ -1,0 +1,21 @@
+{
+    "module": "Scam & Spam Message Detection",
+    "input_type": "Raw text message",
+    "input_field": "text",
+    "label_mapping": {
+        "0": "ham",
+        "1": "spam"
+    },
+    "positive_class": 1,
+    "algorithm": "Logistic Regression",
+    "vectorizer": "TF-IDF",
+    "ngram_range": [
+        1,
+        2
+    ],
+    "max_features": 20000,
+    "lowercase": true,
+    "sublinear_tf": true,
+    "class_weight": "balanced",
+    "max_iter": 1000
+}

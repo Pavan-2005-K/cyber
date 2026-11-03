@@ -1,0 +1,13 @@
+{
+    "threshold": 0.25,
+    "label_mapping": {
+        "0": "Authentic",
+        "1": "Tampered"
+    },
+    "input_size": [
+        160,
+        160
+    ],
+    "preprocessing": "MobileNetV2 preprocess_input",
+    "model": "Fine-tuned MobileNetV2"
+}

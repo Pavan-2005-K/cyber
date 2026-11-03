@@ -1,0 +1,6 @@
+{
+  "threshold": 0.5666666666666667,
+  "comparison": "anomaly_probability >= threshold",
+  "selection_method": "Maximum validation F1-score",
+  "validation_f1": 0.9992088607589936
+}

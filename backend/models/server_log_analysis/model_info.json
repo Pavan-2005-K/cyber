@@ -1,0 +1,16 @@
+{
+  "model_name": "Server and Firewall Log Analysis",
+  "algorithm": "Random Forest Classifier",
+  "module": "server_log_analysis",
+  "dataset": "LogHub HDFS",
+  "feature_count": 29,
+  "training_records": 402542,
+  "validation_records": 86259,
+  "test_records": 86260,
+  "random_state": 42,
+  "n_estimators": 150,
+  "class_weight": "balanced_subsample",
+  "threshold": 0.5666666666666667,
+  "scikit_learn_version": "1.6.1",
+  "created_utc": "2026-10-28T02:19:45.622673+00:00"
+}

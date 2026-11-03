@@ -1,0 +1,16 @@
+{
+    "module": "scam_detection",
+    "model_name": "Scam & Spam Message Detection",
+    "algorithm": "Logistic Regression",
+    "status": "trained_and_evaluated",
+    "created_at_utc": "2026-10-28T10:39:25.380285+00:00",
+    "dataset": "anmolshrivastav/scam-ham-india",
+    "training_samples": 1589,
+    "validation_samples": 341,
+    "test_samples": 341,
+    "limitations": [
+        "Predictions identify patterns associated with the training dataset labels.",
+        "A spam prediction does not independently prove fraud or malicious intent.",
+        "Performance on real-world messages may differ from test results."
+    ]
+}

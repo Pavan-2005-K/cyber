@@ -1,0 +1,25 @@
+{
+    "test_metrics": {
+        "accuracy": 0.9912023460410557,
+        "pr_auc": 0.9991294521035522,
+        "roc_auc": 0.9993871223592184,
+        "precision": 0.9924812030075187,
+        "recall": 0.9850746268656716,
+        "f1_score": 0.9887640449438202
+    },
+    "confusion_matrix": [
+        [
+            206,
+            1
+        ],
+        [
+            2,
+            132
+        ]
+    ],
+    "test_samples": 341,
+    "test_ham_samples": 207,
+    "test_spam_samples": 134,
+    "threshold": 0.4900446005463309,
+    "dataset_specific_results": true
+}
