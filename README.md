@@ -6,6 +6,23 @@ The platform combines a React and TypeScript frontend with a FastAPI backend, ma
 
 It provides a centralized environment for managing investigation cases, uploading digital evidence, analyzing potential cyber threats, verifying evidence integrity, and generating investigation reports.
 
+## Live Deployment
+
+| Component | URL |
+|---|---|
+| Frontend Application | https://cyber-eight-mauve.vercel.app |
+| Login Page | https://cyber-eight-mauve.vercel.app/login |
+| Backend API | https://cyberfusion-backend.onrender.com |
+| Backend Health Check | https://cyberfusion-backend.onrender.com/health |
+
+**Deployment Architecture:**
+- Frontend: Vercel
+- Backend: Render
+- Database: Supabase PostgreSQL
+- File Storage: Supabase Storage
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -14,6 +31,7 @@ It provides a centralized environment for managing investigation cases, uploadin
 - [System Architecture](#system-architecture)
 - [Project Structure](#project-structure)
 - [Machine Learning Modules](#machine-learning-modules)
+- [Lazy Model Loading](#lazy-model-loading)
 - [Digital Evidence and Integrity Management](#digital-evidence-and-integrity-management)
 - [Database and Storage](#database-and-storage)
 - [Getting Started](#getting-started)
@@ -21,8 +39,12 @@ It provides a centralized environment for managing investigation cases, uploadin
 - [Running the Application](#running-the-application)
 - [Testing](#testing)
 - [Deployment](#deployment)
+- [Production Verification](#production-verification)
 - [Security Considerations](#security-considerations)
 - [Limitations](#limitations)
+- [License](#license)
+
+---
 
 ## Overview
 
@@ -40,11 +62,11 @@ Users can:
 8. Generate and download PDF investigation reports.
 9. Review investigation activities through audit logs.
 
-The platform is designed with a modular backend architecture so that individual analysis modules and investigation workflows can be maintained independently.
+The platform follows a modular backend architecture so individual analysis modules and investigation workflows can be maintained independently.
 
 ## Key Features
 
-### Authentication and Case Management
+### 1. Authentication and Case Management
 
 - User registration and login.
 - JWT-based authentication.
@@ -53,12 +75,12 @@ The platform is designed with a modular backend architecture so that individual 
 - Case-specific evidence and investigation records.
 - Access-controlled API endpoints.
 
-### AI-Powered Cybersecurity Analysis
+### 2. AI-Powered Cybersecurity Analysis
 
 - Email phishing detection.
 - Phishing URL analysis.
 - Fake profile detection.
-- Online scam detection.
+- Online scam and spam detection.
 - APK malware analysis.
 - Image forgery detection.
 - Chat and email analysis.
@@ -66,7 +88,7 @@ The platform is designed with a modular backend architecture so that individual 
 - Network intrusion detection.
 - Server log analysis.
 
-### Digital Forensics
+### 3. Digital Forensics
 
 - Digital evidence upload and management.
 - Evidence metadata tracking.
@@ -76,13 +98,15 @@ The platform is designed with a modular backend architecture so that individual 
 - Evidence verification during investigation workflows.
 - Investigation report generation.
 
-### Reports and Auditing
+### 4. Reports and Auditing
 
 - PDF investigation reports.
 - Report integrity verification using SHA-256.
 - Private report storage.
 - Evidence verification during report generation.
 - Audit logging for important investigation activities.
+
+---
 
 ## Technology Stack
 
@@ -106,39 +130,43 @@ The platform is designed with a modular backend architecture so that individual 
 | Version Control | Git, GitHub |
 | Model Versioning | Git LFS |
 
+---
+
 ## System Architecture
 
 ```text
-                 ┌─────────────────────────┐
-                 │       User / Client     │
-                 └────────────┬────────────┘
-                              │
-                              ▼
-                 ┌─────────────────────────┐
-                 │   React + TypeScript    │
-                 │       Frontend         │
-                 │       (Vercel)         │
-                 └────────────┬────────────┘
-                              │ HTTPS / REST API
-                              ▼
-                 ┌─────────────────────────┐
-                 │      FastAPI Backend    │
-                 │        (Render)        │
-                 └────────────┬────────────┘
-                              │
-             ┌────────────────┼─────────────────┐
-             │                │                 │
-             ▼                ▼                 ▼
+                  ┌─────────────────────────┐
+                  │      User / Client      │
+                  └────────────┬────────────┘
+                               │
+                               ▼
+                  ┌─────────────────────────┐
+                  │   React + TypeScript    │
+                  │       Frontend          │
+                  │        (Vercel)         │
+                  └────────────┬────────────┘
+                               │
+                         HTTPS / REST API
+                               │
+                               ▼
+                  ┌─────────────────────────┐
+                  │     FastAPI Backend     │
+                  │        (Render)         │
+                  └────────────┬────────────┘
+                               │
+             ┌─────────────────┼─────────────────┐
+             │                 │                 │
+             ▼                 ▼                 ▼
     ┌────────────────┐ ┌───────────────┐ ┌──────────────────┐
-    │  ML Analysis   │ │  Supabase     │ │  Integrity and   │
-    │    Modules     │ │  PostgreSQL   │ │  Report Services │
+    │  ML Analysis   │ │   Supabase    │ │  Integrity and   │
+    │    Modules     │ │  PostgreSQL   │ │ Report Services  │
     └────────────────┘ └───────────────┘ └────────┬─────────┘
-                                                  │
-                                                  ▼
-                                      ┌──────────────────────┐
-                                      │   Supabase Storage   │
-                                      │  Private Buckets     │
-                                      └──────────────────────┘
+                                                   │
+                                                   ▼
+                                       ┌──────────────────────┐
+                                       │   Supabase Storage   │
+                                       │    Private Buckets   │
+                                       └──────────────────────┘
 ```
 
 ### Architecture Components
@@ -149,6 +177,8 @@ The platform is designed with a modular backend architecture so that individual 
 - **Supabase Storage:** Stores evidence files and generated PDF reports in private buckets.
 - **ML Modules:** Perform cybersecurity analysis using trained machine-learning models.
 - **Integrity Services:** Calculate SHA-256 hashes and maintain signed integrity records.
+
+---
 
 ## Project Structure
 
@@ -165,7 +195,7 @@ CyberFusion/
 │   │   ├── integrity/            # Integrity chains and checkpoints
 │   │   ├── reports/              # PDF report generation and downloads
 │   │   ├── services/             # Shared backend services
-│   │   └── ...                   # Other API modules
+│   │   └── ...                   # Other application modules
 │   │
 │   ├── models/                   # Machine-learning models
 │   │
@@ -193,52 +223,96 @@ CyberFusion/
 └── README.md
 ```
 
+*Note: The structure above highlights the main application components. Additional files and directories may exist in the repository.*
+
+---
+
 ## Machine Learning Modules
 
 CyberFusion integrates multiple machine-learning modules for cybersecurity analysis.
 
 | Module | Purpose |
 |---|---|
-| Email Analysis | Detect suspicious and phishing-related email content |
-| Phishing URL Analysis | Analyze URLs for potential phishing activity |
+| Fake Email Detection | Detect suspicious and phishing-related email content |
+| Phishing URL Detection | Analyze URLs for potential phishing activity |
 | Fake Profile Detection | Identify potentially fraudulent online profiles |
-| Scam Detection | Analyze content for possible online scams |
+| Scam and Spam Detection | Analyze content for possible online scams and spam |
 | APK Malware Analysis | Classify Android application packages for potential malware |
 | Image Forgery Detection | Analyze images for possible manipulation |
-| Chat and Email Analysis | Identify suspicious communication patterns |
+| Chat and Email Forensics | Identify suspicious communication patterns |
 | Credit-Card Fraud Detection | Detect potentially fraudulent transactions |
 | Network Intrusion Detection | Identify suspicious network activity |
 | Server Log Analysis | Analyze server logs for suspicious events |
 
-The backend loads the configured machine-learning models and exposes analysis functionality through API endpoints.
+The backend loads the configured machine-learning models and exposes their analysis functionality through API endpoints.
 
 Model files are maintained in the backend repository. Large model files may use Git LFS.
+
+### Lazy Model Loading
+
+CyberFusion implements lazy initialization for memory-intensive machine-learning models to reduce backend startup memory consumption.
+
+The following models are loaded only when their corresponding analysis endpoints are first requested:
+
+- APK Malware Analysis.
+- Image Forgery Detection.
+
+Other smaller models are initialized during backend startup.
+
+The lazy-loading implementation includes:
+
+- On-demand model initialization.
+- Shared runtime caching to avoid repeated model loading.
+- Thread-safe initialization using a shared lock.
+- Model configuration and input validation.
+- HTTP 503 responses when model initialization fails.
+- Health-check status reporting for lazy-loaded models.
+
+This approach reduces the memory required during normal backend startup.
+
+**Important:** Lazy loading reduces startup memory consumption but does not guarantee that memory-intensive inference will fit within the available hosting memory.
+
+---
 
 ## Digital Evidence and Integrity Management
 
 CyberFusion uses cryptographic techniques to support digital evidence integrity.
 
-### SHA-256 Evidence Verification
+### 1. Evidence Upload
 
 When evidence is uploaded:
 
 1. The backend receives the uploaded file.
-2. The file's SHA-256 hash is calculated.
-3. The file is uploaded to private Supabase Storage.
-4. Storage metadata and evidence information are recorded in PostgreSQL.
-5. The calculated hash is retained for later verification.
+2. The file is validated.
+3. Its SHA-256 hash is calculated.
+4. The file is uploaded to private Supabase Storage.
+5. Evidence metadata and storage references are recorded in PostgreSQL.
+6. The integrity information is associated with the investigation case.
 
-During verification, the backend retrieves the stored evidence and recalculates its SHA-256 hash.
+Supported evidence formats depend on the backend validation and configured storage MIME types.
 
-The calculated hash is compared with the previously recorded hash to detect modifications.
+### 2. SHA-256 Evidence Verification
 
-### Per-Case Integrity Chains
+SHA-256 is used to calculate a cryptographic hash of the evidence file.
+
+During verification:
+
+1. The backend retrieves the stored evidence.
+2. The SHA-256 hash is recalculated.
+3. The calculated hash is compared with the previously recorded hash.
+4. The verification result indicates whether the file content matches the recorded evidence.
+
+A matching hash provides evidence that the retrieved file content has not changed relative to the recorded hash. It does not independently prove the original source or authenticity of the evidence.
+
+### 3. Per-Case Integrity Chains
 
 Evidence integrity records are associated with investigation cases.
 
-The integrity workflow maintains a sequence of records and cryptographic hash relationships to support verification of the evidence history.
+The integrity workflow maintains a sequence of records and cryptographic hash relationships to support verification of the recorded evidence history.
 
-### Ed25519 Digital Signatures
+Case integrity-chain verification is separate from individual file hash verification.
+
+### 4. Ed25519 Digital Signatures
 
 CyberFusion uses Ed25519 digital signatures for newly created integrity checkpoints.
 
@@ -248,6 +322,21 @@ CyberFusion uses Ed25519 digital signatures for newly created integrity checkpoi
 - Private signing keys are stored outside the source repository.
 
 Historical integrity records and their original hashes must be preserved during migrations.
+
+### 5. Investigation Reports
+
+CyberFusion supports PDF investigation report generation.
+
+The report workflow includes:
+
+- Investigation and case information.
+- Relevant evidence information.
+- Integrity-related information.
+- Report generation and download.
+- SHA-256 report integrity verification.
+- Private report storage.
+
+---
 
 ## Database and Storage
 
@@ -278,7 +367,7 @@ CyberFusion uses private Supabase Storage buckets for durable file storage.
 | `cyberfusion-evidence` | Digital evidence files | 10 MB |
 | `cyberfusion-reports` | Generated investigation PDFs | 20 MB |
 
-Evidence and report objects are accessed through the backend using the Supabase service-role credentials.
+Evidence and report objects are accessed through the backend using Supabase service-role credentials.
 
 Storage object references and metadata are maintained in PostgreSQL.
 
@@ -297,9 +386,11 @@ python -m app.db.init_db
 
 This command creates tables from the SQLAlchemy models. It does not run the standalone SQLite migration scripts or import existing records.
 
-**Important:** The existing scripts in `backend/app/db/migrations/` are SQLite-specific. They must not be executed against Supabase PostgreSQL.
-
 A new PostgreSQL deployment must have its schema provisioned using an appropriate PostgreSQL-compatible migration process before the backend is started.
+
+**Important:** Existing scripts in `backend/app/db/migrations/` are SQLite-specific. They must not be executed against Supabase PostgreSQL.
+
+---
 
 ## Getting Started
 
@@ -342,19 +433,19 @@ Install Git LFS if it is not already installed:
 git lfs install
 ```
 
-Download the tracked model files:
+Download tracked model files:
 
 ```powershell
 git lfs pull
 ```
 
-Verify the APK model:
+Verify the LFS-tracked files:
 
 ```powershell
 git lfs ls-files
 ```
 
-The following file must contain the actual model rather than an LFS pointer:
+The following APK model file must contain the actual model rather than an LFS pointer:
 
 ```text
 backend/models/apk_static_analysis/apk_malware_model.joblib
@@ -384,6 +475,7 @@ Install dependencies:
 
 ```powershell
 python -m pip install --upgrade pip
+
 pip install -r requirements.txt
 ```
 
@@ -411,6 +503,8 @@ Configure the local API URL:
 $env:VITE_API_BASE_URL = "http://127.0.0.1:8000"
 ```
 
+---
+
 ## Environment Configuration
 
 ### Backend Environment Variables
@@ -422,7 +516,6 @@ Example configuration:
 ```env
 # Application
 PORT=8000
-NODE_ENV=development
 
 # Database
 DATABASE_URL=YOUR_POSTGRESQL_CONNECTION_STRING
@@ -476,9 +569,17 @@ The frontend requires:
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-For production, replace the local address with the deployed Render backend URL.
+For production, the deployed frontend uses:
 
-Vite embeds `VITE_` variables into the browser build. Never put database credentials, Supabase service-role keys, JWT signing secrets, or private keys in frontend environment variables.
+```env
+VITE_API_BASE_URL=https://cyberfusion-backend.onrender.com
+```
+
+Vite embeds `VITE_` variables into the browser build.
+
+Never put database credentials, Supabase service-role keys, JWT signing secrets, or private keys in frontend environment variables.
+
+---
 
 ## Running the Application
 
@@ -518,6 +619,8 @@ http://localhost:5173
 
 Open that address in a browser.
 
+---
+
 ## Testing
 
 ### Backend Tests
@@ -525,7 +628,7 @@ Open that address in a browser.
 From the `backend` directory, activate the virtual environment and execute:
 
 ```powershell
-pytest -q
+python -m pytest -v
 ```
 
 The backend test suite includes coverage for evidence handling, integrity verification, report workflows, and other API functionality.
@@ -564,6 +667,8 @@ npm run build
 
 Resolve build errors before deploying the frontend.
 
+---
+
 ## Deployment
 
 CyberFusion uses the following hosting architecture:
@@ -578,9 +683,13 @@ CyberFusion uses the following hosting architecture:
 
 ### Backend Deployment – Render
 
-Create a new Render Web Service and connect the GitHub repository.
+The production backend is hosted on Render.
 
-Configure the service with the following settings:
+**Production URL:**
+
+https://cyberfusion-backend.onrender.com
+
+Configure the Render Web Service with the following settings:
 
 | Setting | Value |
 |---|---|
@@ -615,9 +724,17 @@ Check the hosting build process and Git LFS availability before relying on the m
 
 ### Frontend Deployment – Vercel
 
-Import the GitHub repository into Vercel.
+The production frontend is hosted on Vercel.
 
-Configure:
+**Production URL:**
+
+https://cyber-eight-mauve.vercel.app
+
+**Login URL:**
+
+https://cyber-eight-mauve.vercel.app/login
+
+Configure the Vercel project with the following settings:
 
 | Setting | Value |
 |---|---|
@@ -625,14 +742,13 @@ Configure:
 | Root Directory | `frontend` |
 | Build Command | `npm run build` |
 | Output Directory | `dist` |
+| Install Command | `npm install` |
 
 Add the following production environment variable:
 
 ```env
-VITE_API_BASE_URL=https://YOUR-RENDER-BACKEND-URL
+VITE_API_BASE_URL=https://cyberfusion-backend.onrender.com
 ```
-
-Use the actual Render service URL.
 
 Redeploy the frontend after changing production environment variables.
 
@@ -643,27 +759,92 @@ The backend must allow requests from the deployed Vercel frontend.
 Set `CORS_ORIGINS` in Render to include the production frontend origin:
 
 ```env
-CORS_ORIGINS=http://localhost:5173,https://YOUR-VERCEL-DOMAIN
+CORS_ORIGINS=http://localhost:5173,https://cyber-eight-mauve.vercel.app
 ```
 
-Use the exact deployed frontend origin, without an API path.
+Use the exact deployed frontend origin, without an API path or trailing slash.
 
 After changing the CORS configuration, redeploy or restart the backend.
 
-### Deployment Verification
+---
 
-After deploying:
+## Production Verification
 
-1. Open the Render backend URL.
-2. Check the API documentation at `/docs`, if enabled.
-3. Verify that the backend can connect to Supabase PostgreSQL.
-4. Verify that Supabase Storage uploads and downloads work.
-5. Test authentication and protected endpoints.
-6. Test evidence upload and SHA-256 verification.
-7. Test integrity checkpoint creation and signature verification.
-8. Generate and download a PDF investigation report.
-9. Open the Vercel frontend.
-10. Verify frontend-to-backend API communication.
+After deployment, verify the following components.
+
+### 1. Frontend Availability
+
+Open:
+
+https://cyber-eight-mauve.vercel.app
+
+Login page:
+
+https://cyber-eight-mauve.vercel.app/login
+
+Verify that the application loads and the login interface is accessible.
+
+### 2. Backend Health Check
+
+Open:
+
+https://cyberfusion-backend.onrender.com/health
+
+The backend should return a healthy status and module initialization information.
+
+Expected lazy-loading behavior:
+
+| Module | Expected Initial Status |
+|---|---|
+| Fake Email Detection | Loaded |
+| Phishing URL Detection | Loaded |
+| Fake Profile Detection | Loaded |
+| Scam and Spam Detection | Loaded |
+| APK Malware Analysis | Not loaded |
+| Image Forgery Detection | Not loaded |
+| Chat and Email Forensics | Loaded |
+| Credit-Card Fraud Detection | Loaded |
+| Network Intrusion Detection | Loaded |
+| Server Log Analysis | Loaded |
+
+APK Malware Analysis and Image Forgery Detection are initialized on their first corresponding analysis requests.
+
+### 3. Authentication
+
+- Test user registration.
+- Test user login.
+- Verify protected dashboard access.
+- Verify authentication and authorization behavior.
+
+### 4. Case Management
+
+- Create an investigation case.
+- View existing cases.
+- Verify case-specific data and access controls.
+
+### 5. Evidence Management
+
+- Upload a test evidence file.
+- Verify that the file is stored in Supabase Storage.
+- Verify that evidence metadata is recorded in PostgreSQL.
+- Verify SHA-256 hash generation.
+- Test individual evidence integrity verification.
+- Test case integrity-chain verification.
+
+### 6. Investigation Reports
+
+- Generate a PDF investigation report.
+- Verify that the report is stored in the private report bucket.
+- Download the report.
+- Verify its SHA-256 integrity.
+
+### 7. Machine-Learning Analysis
+
+Test the individual cybersecurity analysis modules using harmless sample data.
+
+For memory-intensive modules, monitor Render logs and memory usage during inference.
+
+---
 
 ## Security Considerations
 
@@ -682,19 +863,30 @@ CyberFusion handles investigation information and digital evidence. The followin
 - Restrict CORS to trusted frontend origins.
 - Avoid logging passwords, tokens, private keys, and other secrets.
 - Use strong, randomly generated JWT secrets.
+- Rotate any credentials that may have been exposed.
+
+---
 
 ## Limitations
 
 - Machine-learning detection results depend on model quality, training data, and input characteristics. They should not be treated as definitive proof of malicious activity.
 - Git LFS model files must be downloaded and available before their corresponding analysis modules can operate.
-- Render Free services have limited memory and may sleep after periods of inactivity. ML-heavy model loading can exceed the available memory.
+- Render Free services have limited memory (512 MB) and may sleep after periods of inactivity.
+- Lazy loading reduces startup memory consumption but does not guarantee that large-model inference will fit within the available memory.
+- APK malware analysis and image-forgery detection may require a higher-memory hosting instance.
+- Render Free services may experience cold-start delays after inactivity.
 - Ephemeral hosting filesystems are not suitable for permanent evidence or report storage. CyberFusion uses Supabase Storage for durable cloud file storage.
 - Database schema changes require an appropriate migration process. The application does not automatically migrate PostgreSQL databases at startup.
 - Local SQLite migration scripts are not compatible with Supabase PostgreSQL.
+- Detection results should be reviewed by an investigator and interpreted alongside other evidence.
+
+---
 
 ## License
 
-MIT 
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for details.
 
 ---
 
