@@ -93,6 +93,13 @@ class Evidence(Base):
     media_type: Mapped[str | None] = mapped_column(String(150), nullable=True)
     file_size: Mapped[int] = mapped_column(Integer)
     sha256_hash: Mapped[str] = mapped_column(String(64), index=True)
+    # Supabase Storage metadata
+    storage_bucket: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    storage_object_key: Mapped[str | None] = mapped_column(
+        String(1000), nullable=True
+    )
 
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
@@ -256,6 +263,16 @@ class InvestigationReport(Base):
     )
 
     report_path: Mapped[str] = mapped_column(String(1000))
+    # Supabase Storage metadata
+    storage_bucket: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    storage_object_key: Mapped[str | None] = mapped_column(
+        String(1000), nullable=True
+    )
+    file_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
