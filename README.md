@@ -694,7 +694,7 @@ CyberFusion handles investigation information and digital evidence. The followin
 
 ## License
 
-Add the applicable license information here before distributing the project.
+MIT 
 
 ---
 
