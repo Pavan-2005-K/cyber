@@ -39,6 +39,7 @@ from app.db.models import (
     InvestigationReport,
     User,
 )
+from storage_test_helpers import FakeStorage
 
 
 class InvestigationWorkflowTests(unittest.TestCase):
@@ -107,6 +108,7 @@ class InvestigationWorkflowTests(unittest.TestCase):
             prefix="cyberfusion-workflow-reports-"
         )
         self.reports_dir = Path(self.temp_reports.name).resolve()
+        self.fake_storage = FakeStorage()
         self.generator_reports_patch = patch.object(
             report_generator,
             "REPORTS_DIR",
@@ -119,6 +121,30 @@ class InvestigationWorkflowTests(unittest.TestCase):
         )
         self.generator_reports_patch.start()
         self.router_reports_patch.start()
+        self.storage_patches = [
+            patch.object(
+                report_generator,
+                "download_file",
+                self.fake_storage.download_file,
+            ),
+            patch.object(
+                reports_router,
+                "upload_file",
+                self.fake_storage.upload_file,
+            ),
+            patch.object(
+                reports_router,
+                "download_file",
+                self.fake_storage.download_file,
+            ),
+            patch.object(
+                reports_router,
+                "delete_file",
+                self.fake_storage.delete_file,
+            ),
+        ]
+        for storage_patch in self.storage_patches:
+            storage_patch.start()
 
         def override_get_db():
             session = self.session_factory()
@@ -136,6 +162,8 @@ class InvestigationWorkflowTests(unittest.TestCase):
         self.other_headers = self._headers(self.other_owner_id)
 
     def tearDown(self):
+        for storage_patch in reversed(self.storage_patches):
+            storage_patch.stop()
         self.client.close()
         if self.previous_get_db_override is None:
             main.app.dependency_overrides.pop(get_db, None)
@@ -168,6 +196,30 @@ class InvestigationWorkflowTests(unittest.TestCase):
             f"/api/reports/generate/{case_id or self.owned_case_id}",
             headers=headers or self.owner_headers,
         )
+
+    def _stored_report_bytes(self, report_id):
+        with self.session_factory() as session:
+            report = session.get(InvestigationReport, report_id)
+            self.assertIsNotNone(report)
+            self.assertEqual(
+                report.storage_bucket,
+                reports_router.REPORTS_BUCKET,
+            )
+            self.assertTrue(report.storage_object_key)
+            self.assertEqual(
+                hashlib.sha256(
+                    self.fake_storage.download_file(
+                        report.storage_bucket,
+                        report.storage_object_key,
+                    )
+                ).hexdigest(),
+                report.file_sha256,
+            )
+            self.assertFalse(Path(report.report_path).exists())
+            return self.fake_storage.download_file(
+                report.storage_bucket,
+                report.storage_object_key,
+            )
 
     @staticmethod
     def _pdf_content_streams(pdf_bytes):
@@ -314,11 +366,9 @@ class InvestigationWorkflowTests(unittest.TestCase):
         self.assertEqual(report["case_id"], self.owned_case_id)
         self.assertEqual(report["investigator_id"], self.owner_id)
 
-        with self.session_factory() as session:
-            saved_report = session.get(InvestigationReport, report["id"])
-            self.assertIsNotNone(saved_report)
-            pdf_bytes = Path(saved_report.report_path).read_bytes()
-
+        pdf_bytes = self._stored_report_bytes(report["id"])
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
+        self.assertTrue(pdf_bytes.rstrip().endswith(b"%%EOF"))
         pdf_content = self._pdf_content_streams(pdf_bytes)
         self.assertIn(b"5. AI Detection Findings", pdf_content)
         self.assertIn(b"Finding ", pdf_content)
@@ -328,14 +378,9 @@ class InvestigationWorkflowTests(unittest.TestCase):
         response = self._generate_report()
 
         self.assertEqual(response.status_code, 201, response.text)
-        with self.session_factory() as session:
-            saved_report = session.get(
-                InvestigationReport,
-                response.json()["id"],
-            )
-            self.assertIsNotNone(saved_report)
-            pdf_bytes = Path(saved_report.report_path).read_bytes()
-
+        pdf_bytes = self._stored_report_bytes(response.json()["id"])
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
+        self.assertTrue(pdf_bytes.rstrip().endswith(b"%%EOF"))
         pdf_content = self._pdf_content_streams(pdf_bytes)
         self.assertIn(b"5. AI Detection Findings", pdf_content)
         self.assertIn(
@@ -391,10 +436,9 @@ class InvestigationWorkflowTests(unittest.TestCase):
 
         response = self._generate_report()
         self.assertEqual(response.status_code, 201, response.text)
-        with self.session_factory() as session:
-            report = session.get(InvestigationReport, response.json()["id"])
-            pdf_bytes = Path(report.report_path).read_bytes()
-
+        pdf_bytes = self._stored_report_bytes(response.json()["id"])
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
+        self.assertTrue(pdf_bytes.rstrip().endswith(b"%%EOF"))
         pdf_content = self._pdf_content_streams(pdf_bytes)
         self.assertIn(b"Chain ID", pdf_content)
         self.assertIn(b"Sequence", pdf_content)
@@ -436,10 +480,89 @@ class InvestigationWorkflowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.headers["content-type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF-"))
+        self.assertEqual(
+            hashlib.sha256(response.content).hexdigest(),
+            self._report_hash(report["id"]),
+        )
         self.assertIn(
             f'filename="{report["report_number"]}.pdf"',
             response.headers["content-disposition"],
         )
+
+    def _report_hash(self, report_id):
+        with self.session_factory() as session:
+            report = session.get(InvestigationReport, report_id)
+            self.assertIsNotNone(report)
+            return report.file_sha256
+
+    def test_download_missing_cloud_report_returns_not_found(self):
+        generated = self._generate_report()
+        self.assertEqual(generated.status_code, 201, generated.text)
+        with self.session_factory() as session:
+            report = session.get(
+                InvestigationReport,
+                generated.json()["id"],
+            )
+            self.assertIsNotNone(report)
+            key = (report.storage_bucket, report.storage_object_key)
+        self.fake_storage.objects.pop(key)
+
+        response = self.client.get(
+            f"/api/reports/{generated.json()['id']}/download",
+            headers=self.owner_headers,
+        )
+
+        self.assertEqual(response.status_code, 404, response.text)
+
+    def test_download_modified_cloud_report_fails_hash_verification(self):
+        generated = self._generate_report()
+        self.assertEqual(generated.status_code, 201, generated.text)
+        with self.session_factory() as session:
+            report = session.get(
+                InvestigationReport,
+                generated.json()["id"],
+            )
+            self.assertIsNotNone(report)
+            key = (report.storage_bucket, report.storage_object_key)
+        self.fake_storage.objects[key] = b"%PDF-1.4 tampered report"
+
+        response = self.client.get(
+            f"/api/reports/{generated.json()['id']}/download",
+            headers=self.owner_headers,
+        )
+
+        self.assertEqual(response.status_code, 409, response.text)
+
+    def test_download_cloud_report_without_hash_fails_closed(self):
+        generated = self._generate_report()
+        self.assertEqual(generated.status_code, 201, generated.text)
+        with self.session_factory() as session:
+            report = session.get(
+                InvestigationReport,
+                generated.json()["id"],
+            )
+            self.assertIsNotNone(report)
+            report.file_sha256 = None
+            session.commit()
+
+        response = self.client.get(
+            f"/api/reports/{generated.json()['id']}/download",
+            headers=self.owner_headers,
+        )
+
+        self.assertEqual(response.status_code, 409, response.text)
+
+    def test_download_storage_failure_returns_service_unavailable(self):
+        generated = self._generate_report()
+        self.assertEqual(generated.status_code, 201, generated.text)
+        self.fake_storage.fail("download")
+
+        response = self.client.get(
+            f"/api/reports/{generated.json()['id']}/download",
+            headers=self.owner_headers,
+        )
+
+        self.assertEqual(response.status_code, 503, response.text)
 
     def test_another_investigator_cannot_access_or_download_report(self):
         generated = self._generate_report()

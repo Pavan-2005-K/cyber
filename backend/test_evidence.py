@@ -29,6 +29,7 @@ from app.auth.security import create_access_token
 from app.db.database import Base, get_db
 from app.db.models import Case, Evidence, IntegrityRecord, User
 from integrity_test_helpers import configure_test_signing, restore_test_signing
+from storage_test_helpers import FakeStorage
 
 
 class EvidenceEndpointTests(unittest.TestCase):
@@ -96,6 +97,7 @@ class EvidenceEndpointTests(unittest.TestCase):
             _,
         ) = configure_test_signing(self.storage_root)
         self.evidence_dir = self.storage_root / "storage" / "evidence"
+        self.fake_storage = FakeStorage()
 
         self.evidence_base_patch = patch.object(
             evidence_router,
@@ -121,6 +123,30 @@ class EvidenceEndpointTests(unittest.TestCase):
         self.evidence_dir_patch.start()
         self.integrity_base_patch.start()
         self.integrity_dir_patch.start()
+        self.storage_patches = [
+            patch.object(
+                evidence_router,
+                "upload_file",
+                self.fake_storage.upload_file,
+            ),
+            patch.object(
+                evidence_router,
+                "download_file",
+                self.fake_storage.download_file,
+            ),
+            patch.object(
+                evidence_router,
+                "delete_file",
+                self.fake_storage.delete_file,
+            ),
+            patch.object(
+                integrity_router,
+                "download_file",
+                self.fake_storage.download_file,
+            ),
+        ]
+        for storage_patch in self.storage_patches:
+            storage_patch.start()
 
         def override_get_db():
             session = self.session_factory()
@@ -145,6 +171,8 @@ class EvidenceEndpointTests(unittest.TestCase):
         }
 
     def tearDown(self):
+        for storage_patch in reversed(self.storage_patches):
+            storage_patch.stop()
         if self.previous_get_db_override is None:
             main.app.dependency_overrides.pop(get_db, None)
         else:
@@ -179,11 +207,16 @@ class EvidenceEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
-    def _evidence_path(self, evidence_id):
+    def _get_evidence(self, evidence_id):
         with self.session_factory() as session:
             evidence = session.get(Evidence, evidence_id)
             self.assertIsNotNone(evidence)
-            return (self.storage_root / evidence.storage_path).resolve()
+            return {
+                "id": evidence.id,
+                "storage_bucket": evidence.storage_bucket,
+                "storage_object_key": evidence.storage_object_key,
+                "storage_path": evidence.storage_path,
+            }
 
     def test_valid_evidence_upload(self):
         response = self._upload()
@@ -197,9 +230,20 @@ class EvidenceEndpointTests(unittest.TestCase):
         self.assertEqual(body["file_size"], len(self.evidence_content))
         self.assertEqual(body["sha256_hash"], expected_hash)
 
-        evidence_path = self._evidence_path(body["evidence_id"])
-        self.assertTrue(evidence_path.is_relative_to(self.evidence_dir))
-        self.assertEqual(evidence_path.read_bytes(), self.evidence_content)
+        evidence = self._get_evidence(body["evidence_id"])
+        self.assertEqual(
+            evidence["storage_bucket"],
+            evidence_router.EVIDENCE_BUCKET,
+        )
+        self.assertTrue(evidence["storage_object_key"])
+        self.assertTrue(evidence["storage_path"].startswith("supabase://"))
+        self.assertEqual(
+            self.fake_storage.download_file(
+                evidence["storage_bucket"],
+                evidence["storage_object_key"],
+            ),
+            self.evidence_content,
+        )
 
     def test_disallowed_file_extension(self):
         response = self._upload(filename="payload.exe")
@@ -279,9 +323,10 @@ class EvidenceEndpointTests(unittest.TestCase):
 
     def test_modified_evidence_is_detected(self):
         uploaded = self._upload_evidence()
-        self._evidence_path(uploaded["evidence_id"]).write_bytes(
-            b"Modified evidence content.\n"
-        )
+        evidence = self._get_evidence(uploaded["evidence_id"])
+        self.fake_storage.objects[
+            (evidence["storage_bucket"], evidence["storage_object_key"])
+        ] = b"Modified evidence content.\n"
 
         response = self.client.post(
             f"/api/evidence/{uploaded['evidence_id']}/verify",
@@ -296,10 +341,19 @@ class EvidenceEndpointTests(unittest.TestCase):
             body["current_sha256_hash"],
             body["stored_sha256_hash"],
         )
+        record_response = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(record_response.status_code, 409, record_response.text)
 
     def test_missing_evidence_file_is_reported(self):
         uploaded = self._upload_evidence()
-        self._evidence_path(uploaded["evidence_id"]).unlink()
+        evidence = self._get_evidence(uploaded["evidence_id"])
+        self.fake_storage.delete_file(
+            evidence["storage_bucket"],
+            evidence["storage_object_key"],
+        )
 
         response = self.client.post(
             f"/api/evidence/{uploaded['evidence_id']}/verify",
@@ -312,9 +366,15 @@ class EvidenceEndpointTests(unittest.TestCase):
             {
                 "evidence_id": uploaded["evidence_id"],
                 "status": "FILE_MISSING",
+                "integrity_verified": False,
                 "message": "The stored evidence file could not be found.",
             },
         )
+        record_response = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(record_response.status_code, 404, record_response.text)
 
     def test_integrity_record_creation_and_retrieval(self):
         uploaded = self._upload_evidence()
@@ -363,6 +423,136 @@ class EvidenceEndpointTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_incomplete_cloud_metadata_is_rejected(self):
+        uploaded = self._upload_evidence()
+        with self.session_factory() as session:
+            evidence = session.get(Evidence, uploaded["evidence_id"])
+            evidence.storage_object_key = None
+            session.commit()
+
+        verify_response = self.client.post(
+            f"/api/evidence/{uploaded['evidence_id']}/verify",
+            headers=self.auth_headers,
+        )
+        record_response = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(verify_response.status_code, 400, verify_response.text)
+        self.assertEqual(record_response.status_code, 400, record_response.text)
+
+    def test_unexpected_cloud_bucket_is_rejected(self):
+        uploaded = self._upload_evidence()
+        with self.session_factory() as session:
+            evidence = session.get(Evidence, uploaded["evidence_id"])
+            evidence.storage_bucket = "unexpected-bucket"
+            session.commit()
+
+        verify_response = self.client.post(
+            f"/api/evidence/{uploaded['evidence_id']}/verify",
+            headers=self.auth_headers,
+        )
+        record_response = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(verify_response.status_code, 400, verify_response.text)
+        self.assertEqual(record_response.status_code, 400, record_response.text)
+
+    def test_supabase_uri_without_metadata_is_rejected(self):
+        uploaded = self._upload_evidence()
+        with self.session_factory() as session:
+            evidence = session.get(Evidence, uploaded["evidence_id"])
+            evidence.storage_bucket = None
+            evidence.storage_object_key = None
+            session.commit()
+
+        response = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+
+    def test_storage_service_failure_is_not_verified(self):
+        uploaded = self._upload_evidence()
+        created = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        self.fake_storage.fail("download")
+
+        verify_response = self.client.post(
+            f"/api/evidence/{uploaded['evidence_id']}/verify",
+            headers=self.auth_headers,
+        )
+        record_response = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(verify_response.status_code, 503, verify_response.text)
+        self.assertEqual(record_response.status_code, 503, record_response.text)
+        chain_response = self.client.get(
+            "/api/integrity/verify-chain",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(chain_response.status_code, 200, chain_response.text)
+        self.assertFalse(chain_response.json()["chain_valid"])
+        self.assertTrue(chain_response.json()["errors"])
+
+    def test_legacy_local_evidence_verification_and_integrity_record(self):
+        legacy_content = b"Legacy local evidence."
+        legacy_path = self.evidence_dir / "legacy.txt"
+        legacy_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.write_bytes(legacy_content)
+        with self.session_factory() as session:
+            evidence = Evidence(
+                case_id=self.owned_case_id,
+                uploaded_by=self.owner_id,
+                original_filename="legacy.txt",
+                storage_path="storage/evidence/legacy.txt",
+                media_type="text/plain",
+                file_size=len(legacy_content),
+                sha256_hash=hashlib.sha256(legacy_content).hexdigest(),
+            )
+            session.add(evidence)
+            session.commit()
+            evidence_id = evidence.id
+
+        verify_response = self.client.post(
+            f"/api/evidence/{evidence_id}/verify",
+            headers=self.auth_headers,
+        )
+        record_response = self.client.post(
+            f"/api/integrity/evidence/{evidence_id}/record",
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(verify_response.status_code, 200, verify_response.text)
+        self.assertTrue(verify_response.json()["integrity_verified"])
+        self.assertEqual(record_response.status_code, 200, record_response.text)
+
+    def test_case_chain_verification_reads_supabase_evidence(self):
+        uploaded = self._upload_evidence()
+        created = self.client.post(
+            f"/api/integrity/evidence/{uploaded['evidence_id']}/record",
+            headers=self.auth_headers,
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+
+        response = self.client.get(
+            "/api/integrity/verify-chain",
+            headers=self.auth_headers,
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["chain_valid"])
+        self.assertEqual(response.json()["errors"], [])
 
     def test_integrity_chain_detects_tampered_record(self):
         uploaded = self._upload_evidence()

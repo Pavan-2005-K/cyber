@@ -31,6 +31,7 @@ from app.db.models import (
     IntegrityRecord,
     DetectionFinding,
 )
+from app.services.storage_service import EVIDENCE_BUCKET, download_file
 
 
 # --------------------------------------------------
@@ -94,6 +95,51 @@ def verify_evidence_file(evidence):
     """
 
     try:
+        storage_bucket = evidence.storage_bucket
+        storage_object_key = evidence.storage_object_key
+
+        if storage_bucket is not None or storage_object_key is not None:
+            if (
+                not isinstance(storage_bucket, str)
+                or not storage_bucket.strip()
+                or storage_bucket != EVIDENCE_BUCKET
+                or not isinstance(storage_object_key, str)
+                or not storage_object_key.strip()
+            ):
+                return "INVALID STORAGE METADATA"
+
+            try:
+                file_bytes = download_file(
+                    bucket=storage_bucket,
+                    object_key=storage_object_key,
+                )
+            except FileNotFoundError:
+                return "FILE NOT FOUND"
+            except Exception as error:
+                status_code = getattr(
+                    error,
+                    "status",
+                    getattr(error, "status_code", None),
+                )
+                if str(status_code) == "404":
+                    return "FILE NOT FOUND"
+                raise
+
+            calculated_hash = hashlib.sha256(file_bytes).hexdigest()
+            if calculated_hash == evidence.sha256_hash:
+                return "VERIFIED"
+            return "HASH MISMATCH"
+
+        if (
+            isinstance(evidence.storage_path, str)
+            and evidence.storage_path.startswith("supabase://")
+        ):
+            return "INVALID STORAGE METADATA"
+
+        # Legacy evidence stored on the local filesystem.
+        if not evidence.storage_path:
+            return "FILE NOT FOUND"
+
         evidence_path = Path(
             evidence.storage_path
         ).resolve()
@@ -125,6 +171,8 @@ def verify_evidence_file(evidence):
         return "HASH MISMATCH"
 
     except OSError:
+        return "VERIFICATION ERROR"
+    except Exception:
         return "VERIFICATION ERROR"
 
 

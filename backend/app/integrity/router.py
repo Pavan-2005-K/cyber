@@ -22,6 +22,7 @@ from app.db.models import (
     IntegrityRecord,
     User,
 )
+from app.services.storage_service import EVIDENCE_BUCKET, download_file
 from app.integrity.signing import (
     SIGNATURE_INVALID,
     SIGNATURE_UNKNOWN_KEY,
@@ -143,6 +144,17 @@ def get_owned_evidence(
 
 
 def get_safe_evidence_path(storage_path: str) -> Path:
+    if not isinstance(storage_path, str) or not storage_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid evidence storage path.",
+        )
+    if storage_path.startswith("supabase://"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid evidence storage path.",
+        )
+
     file_path = (BASE_DIR / storage_path).resolve()
 
     if not file_path.is_relative_to(EVIDENCE_DIR):
@@ -152,6 +164,50 @@ def get_safe_evidence_path(storage_path: str) -> Path:
         )
 
     return file_path
+
+
+def calculate_evidence_sha256(evidence: Evidence) -> str:
+    has_storage_metadata = (
+        evidence.storage_bucket is not None
+        or evidence.storage_object_key is not None
+    )
+    if has_storage_metadata:
+        if (
+            evidence.storage_bucket != EVIDENCE_BUCKET
+            or not isinstance(evidence.storage_object_key, str)
+            or not evidence.storage_object_key.strip()
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid evidence storage metadata.",
+            )
+
+        try:
+            file_bytes = download_file(
+                bucket=evidence.storage_bucket,
+                object_key=evidence.storage_object_key,
+            )
+        except FileNotFoundError:
+            raise
+        except Exception as error:
+            status_code = getattr(
+                error,
+                "status",
+                getattr(error, "status_code", None),
+            )
+            if str(status_code) == "404":
+                raise FileNotFoundError(
+                    "Evidence object was not found."
+                ) from error
+            raise
+
+        return hashlib.sha256(file_bytes).hexdigest()
+
+    evidence_path = get_safe_evidence_path(evidence.storage_path)
+    if not evidence_path.is_file():
+        raise FileNotFoundError("Evidence file was not found.")
+
+    return calculate_file_sha256(evidence_path)
 
 
 def _integrity_error(record_id: int, problem: str) -> dict:
@@ -330,24 +386,27 @@ def _verify_case_chain(
                 )
 
             try:
-                evidence_path = get_safe_evidence_path(evidence.storage_path)
-            except HTTPException:
-                record_errors.append("Evidence storage path is invalid.")
-            else:
-                if not evidence_path.is_file():
-                    record_errors.append("Evidence file is missing.")
+                actual_evidence_hash = calculate_evidence_sha256(evidence)
+            except HTTPException as error:
+                if error.status_code == 400:
+                    record_errors.append(
+                        "Evidence storage metadata is invalid."
+                    )
                 else:
-                    try:
-                        actual_evidence_hash = calculate_file_sha256(
-                            evidence_path
-                        )
-                    except OSError:
-                        record_errors.append("Evidence file cannot be read.")
-                    else:
-                        if actual_evidence_hash != record.sha256_hash:
-                            record_errors.append(
-                                "Evidence file hash does not match the record."
-                            )
+                    record_errors.append(
+                        "Evidence storage information is invalid."
+                    )
+            except FileNotFoundError:
+                record_errors.append("Evidence file is missing.")
+            except OSError:
+                record_errors.append("Evidence file cannot be read.")
+            except Exception:
+                record_errors.append("Evidence file cannot be accessed.")
+            else:
+                if actual_evidence_hash != record.sha256_hash:
+                    record_errors.append(
+                        "Evidence file hash does not match the record."
+                    )
 
         if record.recorded_at is None:
             record_errors.append("Record timestamp is missing.")
@@ -691,20 +750,25 @@ def create_integrity_record(
                     detail="Evidence not found.",
                 )
 
-            file_path = get_safe_evidence_path(evidence.storage_path)
-            if not file_path.is_file():
+            try:
+                current_hash = calculate_evidence_sha256(evidence)
+            except HTTPException:
+                raise
+            except FileNotFoundError as error:
                 raise HTTPException(
                     status_code=404,
                     detail="Evidence file is missing.",
-                )
-
-            try:
-                current_hash = calculate_file_sha256(file_path)
-            except OSError:
+                ) from error
+            except OSError as error:
                 raise HTTPException(
                     status_code=500,
                     detail="Unable to read the evidence file.",
-                )
+                ) from error
+            except Exception as error:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Unable to access the stored evidence file.",
+                ) from error
 
             if current_hash != evidence.sha256_hash:
                 raise HTTPException(
