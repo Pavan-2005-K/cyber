@@ -1,6 +1,6 @@
 # CyberFusion – AI Cybersecurity and Digital Forensics Platform
 
-CyberFusion is an AI-powered cybersecurity analysis and digital-forensics platform designed to support security investigations, evidence management, integrity verification, and automated threat analysis.
+CyberFusion is an AI-powered cybersecurity analysis and digital-forensics platform designed to support security investigations, digital evidence management, integrity verification, and automated threat analysis.
 
 The platform combines a React and TypeScript frontend with a FastAPI backend, machine-learning analysis modules, Supabase PostgreSQL, and private Supabase Storage.
 
@@ -57,7 +57,7 @@ Users can:
 3. Upload digital evidence.
 4. Analyze suspicious files, messages, URLs, and network activity.
 5. Verify evidence integrity using SHA-256.
-6. Maintain per-case integrity chains.
+6. Maintain per-case cryptographic integrity chains.
 7. Generate cryptographically signed integrity checkpoints.
 8. Generate and download PDF investigation reports.
 9. Review investigation activities through audit logs.
@@ -93,7 +93,7 @@ The platform follows a modular backend architecture so individual analysis modul
 - Digital evidence upload and management.
 - Evidence metadata tracking.
 - SHA-256 file integrity verification.
-- Per-case evidence integrity chains.
+- Per-case cryptographic integrity chains.
 - Ed25519 digital signatures for newly created integrity checkpoints.
 - Evidence verification during investigation workflows.
 - Investigation report generation.
@@ -114,6 +114,7 @@ The platform follows a modular backend architecture so individual analysis modul
 |---|---|
 | Frontend | React, TypeScript, Vite |
 | Backend | Python, FastAPI |
+| API Communication | REST API, HTTPS |
 | Database | Supabase PostgreSQL |
 | ORM | SQLAlchemy |
 | Database Driver | psycopg |
@@ -133,6 +134,10 @@ The platform follows a modular backend architecture so individual analysis modul
 ---
 
 ## System Architecture
+
+CyberFusion follows a client-server architecture. The frontend communicates with the FastAPI backend through HTTPS REST APIs. The backend coordinates authentication, case management, machine-learning analysis, database operations, evidence storage, integrity verification, and report generation.
+
+### Architecture Diagram
 
 ```text
                   ┌─────────────────────────┐
@@ -154,29 +159,32 @@ The platform follows a modular backend architecture so individual analysis modul
                   │        (Render)         │
                   └────────────┬────────────┘
                                │
-             ┌─────────────────┼─────────────────┐
-             │                 │                 │
-             ▼                 ▼                 ▼
-    ┌────────────────┐ ┌───────────────┐ ┌──────────────────┐
-    │  ML Analysis   │ │   Supabase    │ │  Integrity and   │
-    │    Modules     │ │  PostgreSQL   │ │ Report Services  │
-    └────────────────┘ └───────────────┘ └────────┬─────────┘
+           ┌───────────────────┼───────────────────┐
+           │                   │                   │
+           ▼                   ▼                   ▼
+  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐
+  │  AI/ML Analysis│  │   Supabase     │  │   Integrity and  │
+  │    Modules     │  │  PostgreSQL    │  │ Report Services  │
+  └────────────────┘  └────────────────┘  └────────┬─────────┘
                                                    │
                                                    ▼
-                                       ┌──────────────────────┐
-                                       │   Supabase Storage   │
-                                       │    Private Buckets   │
-                                       └──────────────────────┘
+                                      ┌──────────────────────┐
+                                      │   Supabase Storage   │
+                                      │    Private Buckets   │
+                                      └──────────────────────┘
 ```
 
 ### Architecture Components
 
 - **Frontend:** Provides the user interface and communicates with backend API endpoints.
-- **Backend:** Handles authentication, authorization, investigation workflows, ML analysis, evidence processing, and report generation.
+- **Backend:** Handles authentication, authorization, investigation workflows, machine-learning analysis, evidence processing, and report generation.
 - **Supabase PostgreSQL:** Stores application records, evidence metadata, investigation data, and integrity information.
 - **Supabase Storage:** Stores evidence files and generated PDF reports in private buckets.
-- **ML Modules:** Perform cybersecurity analysis using trained machine-learning models.
-- **Integrity Services:** Calculate SHA-256 hashes and maintain signed integrity records.
+- **AI/ML Modules:** Perform cybersecurity analysis using configured machine-learning models and analysis components.
+- **Integrity Services:** Calculate SHA-256 hashes, maintain cryptographic integrity records, and generate or verify Ed25519 signatures.
+- **Report Services:** Generate PDF investigation reports and support report integrity verification.
+
+**Note:** CyberFusion uses cryptographic hashing, hash chains, and digital signatures. It does not use blockchain technology or a distributed ledger.
 
 ---
 
@@ -229,7 +237,7 @@ CyberFusion/
 
 ## Machine Learning Modules
 
-CyberFusion integrates multiple machine-learning modules for cybersecurity analysis.
+CyberFusion integrates multiple machine-learning and analysis modules for cybersecurity investigations.
 
 | Module | Purpose |
 |---|---|
@@ -247,6 +255,8 @@ CyberFusion integrates multiple machine-learning modules for cybersecurity analy
 The backend loads the configured machine-learning models and exposes their analysis functionality through API endpoints.
 
 Model files are maintained in the backend repository. Large model files may use Git LFS.
+
+The specific algorithms and models differ between modules. Not every analysis component necessarily uses the same machine-learning architecture.
 
 ### Lazy Model Loading
 
@@ -302,21 +312,28 @@ During verification:
 3. The calculated hash is compared with the previously recorded hash.
 4. The verification result indicates whether the file content matches the recorded evidence.
 
-A matching hash provides evidence that the retrieved file content has not changed relative to the recorded hash. It does not independently prove the original source or authenticity of the evidence.
+A matching hash provides evidence that the retrieved file content has not changed relative to the recorded hash.
 
-### 3. Per-Case Integrity Chains
+However, SHA-256 verification alone does not independently prove the original source, ownership, or authenticity of the evidence.
 
-Evidence integrity records are associated with investigation cases.
+### 3. Per-Case Cryptographic Integrity Chains
 
-The integrity workflow maintains a sequence of records and cryptographic hash relationships to support verification of the recorded evidence history.
+CyberFusion maintains cryptographic integrity records associated with individual investigation cases.
+
+- Each evidence record contains its corresponding SHA-256 hash.
+- Integrity records are maintained in a sequential chain using cryptographic hash relationships.
+- Previous integrity information is used to support verification of subsequent records.
+- Case integrity-chain verification checks the consistency of the recorded evidence history.
 
 Case integrity-chain verification is separate from individual file hash verification.
+
+**Note:** This implementation uses cryptographic hash chains and does not use blockchain technology, smart contracts, or a distributed ledger.
 
 ### 4. Ed25519 Digital Signatures
 
 CyberFusion uses Ed25519 digital signatures for newly created integrity checkpoints.
 
-- The private key is used to sign checkpoints.
+- The private key is used to sign integrity checkpoints.
 - Trusted public keys are used for signature verification.
 - A key identifier associates signatures with the appropriate public key.
 - Private signing keys are stored outside the source repository.
@@ -481,7 +498,7 @@ pip install -r requirements.txt
 
 Create a `backend/.env` file and configure the required environment variables.
 
-Refer to [Environment Configuration](#environment-configuration).
+Refer to the [Environment Configuration](#environment-configuration) section.
 
 ### 4. Configure the Frontend
 
@@ -879,6 +896,8 @@ CyberFusion handles investigation information and digital evidence. The followin
 - Database schema changes require an appropriate migration process. The application does not automatically migrate PostgreSQL databases at startup.
 - Local SQLite migration scripts are not compatible with Supabase PostgreSQL.
 - Detection results should be reviewed by an investigator and interpreted alongside other evidence.
+- Cryptographic hash verification establishes consistency with recorded hash values; it does not independently establish the original authenticity or provenance of evidence.
+- Cryptographic integrity chains are not blockchain and do not provide distributed-ledger consensus.
 
 ---
 
