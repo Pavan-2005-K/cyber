@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
@@ -518,6 +518,10 @@ class StandaloneAIPredictionTests(unittest.TestCase):
         )
 
     def test_apk_analysis_inference_error_response(self):
+        model = Mock()
+        model.predict.side_effect = RuntimeError(
+            "controlled model failure"
+        )
         with (
             patch.object(
                 main,
@@ -527,9 +531,9 @@ class StandaloneAIPredictionTests(unittest.TestCase):
                 },
             ),
             patch.object(
-                main.apk_malware_model,
-                "predict",
-                side_effect=RuntimeError("controlled model failure"),
+                main,
+                "get_apk_malware_model",
+                return_value=model,
             ),
         ):
             response = self.client.post(
@@ -597,11 +601,36 @@ class StandaloneAIPredictionTests(unittest.TestCase):
         self.assertEqual(invalid_image.status_code, 400, invalid_image.text)
         self.assertEqual(empty.status_code, 400, empty.text)
 
+    def test_image_forgery_model_initialization_failure_is_service_unavailable(
+        self,
+    ):
+        with (
+            patch.object(main, "_image_forgery_runtime", None),
+            patch.object(
+                main,
+                "_load_image_forgery_runtime",
+                side_effect=RuntimeError("controlled initialization failure"),
+            ) as initialize,
+        ):
+            response = self.client.post(
+                "/api/image-forgery/predict",
+                files={"file": _image_upload()},
+            )
+
+        self.assertEqual(response.status_code, 503, response.text)
+        self.assertEqual(
+            response.json()["detail"],
+            "Image forgery detection model is unavailable.",
+        )
+        initialize.assert_called_once_with()
+
     def test_image_forgery_inference_error_response(self):
+        model = Mock()
+        model.predict.side_effect = RuntimeError("controlled model failure")
         with patch.object(
-            main.image_forgery_model,
-            "predict",
-            side_effect=RuntimeError("controlled model failure"),
+            main,
+            "get_image_forgery_runtime",
+            return_value=(model, lambda batch: batch),
         ):
             response = self.client.post(
                 "/api/image-forgery/predict",

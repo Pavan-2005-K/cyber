@@ -4,9 +4,6 @@ import zipfile
 from collections import Counter
 from pathlib import Path
 
-from androguard.core.apk import APK
-
-
 FEATURE_COLUMNS = [
     "IPCAbuse", "NDK", "ServiceLifecycle", "WorkManager",
     "TotalJavaFile", "JavaLangReflectMethod", "RootAccess",
@@ -130,6 +127,8 @@ def extract_apk_features(apk_path: str | Path) -> dict:
         raise ValueError("The uploaded file must have an .apk extension.")
 
     try:
+        from androguard.core.apk import APK
+
         apk = APK(str(apk_path))
 
         if not apk.is_valid_APK():

@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -355,6 +355,37 @@ class CaseLinkedEndpointIntegrationTests(unittest.TestCase):
             headers=self.auth_headers,
             **kwargs,
         )
+
+    def test_image_forgery_endpoints_share_lazy_model(self):
+        model = Mock()
+        model.predict.return_value = [[0.2]]
+        preprocess = lambda batch: batch
+        with (
+            patch.object(main, "_image_forgery_runtime", None),
+            patch.object(
+                main,
+                "_load_image_forgery_runtime",
+                return_value=(model, preprocess),
+            ) as initialize,
+        ):
+            standalone_response = self.client.post(
+                "/api/image-forgery/predict",
+                files={"file": _image_upload()},
+            )
+            case_response = self.client.post(
+                f"/api/image-forgery/cases/{self.owned_case_id}/predict",
+                headers=self.auth_headers,
+                files={"file": _image_upload()},
+            )
+
+        self.assertEqual(
+            standalone_response.status_code,
+            200,
+            standalone_response.text,
+        )
+        self.assertEqual(case_response.status_code, 200, case_response.text)
+        initialize.assert_called_once_with()
+        self.assertEqual(model.predict.call_count, 2)
 
     def assert_endpoint_success(self, endpoint):
         response = self._request(endpoint, self.owned_case_id)

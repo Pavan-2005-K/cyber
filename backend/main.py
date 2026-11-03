@@ -5,7 +5,8 @@ import os
 import tempfile
 from email import policy
 from email.parser import BytesParser
-from typing import Annotated
+from threading import Lock
+from typing import Annotated, Any, Callable
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -17,9 +18,7 @@ from app.findings.service import save_detection_finding
 import joblib
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from PIL import Image, UnidentifiedImageError
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -210,9 +209,6 @@ SCAM_SPAM_THRESHOLD = float(scam_threshold_config["threshold"])
 # LOAD APK MALWARE MODEL
 # =========================================================
 
-if not APK_MODEL_PATH.is_file():
-    raise FileNotFoundError(f"APK model not found: {APK_MODEL_PATH}")
-
 if not APK_FEATURES_PATH.is_file():
     raise FileNotFoundError(
         f"APK feature configuration not found: {APK_FEATURES_PATH}"
@@ -223,8 +219,6 @@ if not APK_LABELS_PATH.is_file():
         f"APK label mapping not found: {APK_LABELS_PATH}"
     )
 
-apk_malware_model = joblib.load(APK_MODEL_PATH)
-
 with APK_FEATURES_PATH.open("r", encoding="utf-8") as file:
     apk_feature_columns = json.load(file)
 
@@ -234,20 +228,48 @@ with APK_LABELS_PATH.open("r", encoding="utf-8") as file:
 if len(apk_feature_columns) != 68:
     raise RuntimeError("APK feature configuration must contain exactly 68 features.")
 
-if getattr(apk_malware_model, "n_features_in_", None) != len(apk_feature_columns):
-    raise RuntimeError(
-        "APK model input size does not match feature_columns.json."
-    )
+_lazy_model_lock = Lock()
+_apk_malware_model: Any | None = None
+
+
+def get_apk_malware_model() -> Any:
+    global _apk_malware_model
+
+    if _apk_malware_model is not None:
+        return _apk_malware_model
+
+    with _lazy_model_lock:
+        if _apk_malware_model is not None:
+            return _apk_malware_model
+
+        try:
+            if not APK_MODEL_PATH.is_file():
+                raise FileNotFoundError(
+                    f"APK model not found: {APK_MODEL_PATH}"
+                )
+
+            model = joblib.load(APK_MODEL_PATH)
+            if (
+                getattr(model, "n_features_in_", None)
+                != len(apk_feature_columns)
+            ):
+                raise RuntimeError(
+                    "APK model input size does not match "
+                    "feature_columns.json."
+                )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="APK malware analysis model is unavailable.",
+            ) from exc
+
+        _apk_malware_model = model
+        return _apk_malware_model
 
 
 # =========================================================
 # LOAD IMAGE FORGERY DETECTION MODEL
 # =========================================================
-
-if not IMAGE_FORGERY_MODEL_PATH.is_file():
-    raise FileNotFoundError(
-        f"Image forgery model not found: {IMAGE_FORGERY_MODEL_PATH}"
-    )
 
 if not IMAGE_FORGERY_CONFIG_PATH.is_file():
     raise FileNotFoundError(
@@ -273,20 +295,55 @@ if image_forgery_config.get("preprocessing") != "MobileNetV2 preprocess_input":
 if not 0.0 <= IMAGE_FORGERY_THRESHOLD <= 1.0:
     raise RuntimeError("Image forgery threshold must be between 0 and 1.")
 
-image_forgery_model = tf.keras.models.load_model(
-    IMAGE_FORGERY_MODEL_PATH,
-    compile=False,
-)
+_image_forgery_runtime: tuple[Any, Callable] | None = None
 
-if tuple(image_forgery_model.input_shape[1:]) != (160, 160, 3):
-    raise RuntimeError(
-        "Image forgery model input shape must be (None, 160, 160, 3)."
+
+def _load_image_forgery_runtime() -> tuple[Any, Callable]:
+    if not IMAGE_FORGERY_MODEL_PATH.is_file():
+        raise FileNotFoundError(
+            f"Image forgery model not found: {IMAGE_FORGERY_MODEL_PATH}"
+        )
+
+    import tensorflow as tf
+    from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+
+    model = tf.keras.models.load_model(
+        IMAGE_FORGERY_MODEL_PATH,
+        compile=False,
     )
 
-if image_forgery_model.output_shape[-1] != 1:
-    raise RuntimeError(
-        "Image forgery model must return one probability per image."
-    )
+    if tuple(model.input_shape[1:]) != (160, 160, 3):
+        raise RuntimeError(
+            "Image forgery model input shape must be (None, 160, 160, 3)."
+        )
+
+    if model.output_shape[-1] != 1:
+        raise RuntimeError(
+            "Image forgery model must return one probability per image."
+        )
+
+    return model, preprocess_input
+
+
+def get_image_forgery_runtime() -> tuple[Any, Callable]:
+    global _image_forgery_runtime
+
+    if _image_forgery_runtime is not None:
+        return _image_forgery_runtime
+
+    with _lazy_model_lock:
+        if _image_forgery_runtime is not None:
+            return _image_forgery_runtime
+
+        try:
+            _image_forgery_runtime = _load_image_forgery_runtime()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Image forgery detection model is unavailable.",
+            ) from exc
+
+        return _image_forgery_runtime
 
 
 # =========================================================
@@ -703,8 +760,14 @@ def health():
         "phishing_url_detection": "loaded",
         "fake_profile_detection": "loaded",
         "scam_spam_detection": "loaded",
-        "apk_malware_analysis": "loaded",
-        "image_forgery_detection": "loaded",
+        "apk_malware_analysis": (
+            "loaded" if _apk_malware_model is not None else "not_loaded"
+        ),
+        "image_forgery_detection": (
+            "loaded"
+            if _image_forgery_runtime is not None
+            else "not_loaded"
+        ),
         "chat_email_forensics": "loaded",
         "credit_card_fraud_detection": "loaded",
         "network_intrusion_detection": "loaded",
@@ -1588,6 +1651,7 @@ async def analyze_apk(file: UploadFile = File(...)):
             columns=apk_feature_columns,
         )
 
+        apk_malware_model = get_apk_malware_model()
         prediction = int(apk_malware_model.predict(feature_values)[0])
         probabilities = apk_malware_model.predict_proba(feature_values)[0]
         classes = list(apk_malware_model.classes_)
@@ -1685,6 +1749,7 @@ async def analyze_apk_for_case(
             [[features[column] for column in apk_feature_columns]],
             columns=apk_feature_columns,
         )
+        apk_malware_model = get_apk_malware_model()
         prediction = int(apk_malware_model.predict(feature_values)[0])
         probabilities = apk_malware_model.predict_proba(feature_values)[0]
         classes = list(apk_malware_model.classes_)
@@ -1836,6 +1901,7 @@ async def predict_image_forgery(file: UploadFile = File(...)):
             ) from exc
 
         image_batch = np.expand_dims(image_array, axis=0)
+        image_forgery_model, preprocess_input = get_image_forgery_runtime()
         image_batch = preprocess_input(image_batch)
 
         raw_prediction = image_forgery_model.predict(image_batch, verbose=0)
@@ -1933,6 +1999,7 @@ async def predict_image_forgery_for_case(
             ) from exc
 
         image_batch = np.expand_dims(image_array, axis=0)
+        image_forgery_model, preprocess_input = get_image_forgery_runtime()
         image_batch = preprocess_input(image_batch)
         raw_prediction = image_forgery_model.predict(image_batch, verbose=0)
         tampered_probability = float(np.asarray(raw_prediction).reshape(-1)[0])
