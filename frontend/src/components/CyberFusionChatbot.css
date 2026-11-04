@@ -1,0 +1,340 @@
+
+.cyber-chatbot {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 1000;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.cyber-chat-launcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 20px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  box-shadow: 0 8px 30px rgba(37, 99, 235, 0.35);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.cyber-chat-launcher:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(37, 99, 235, 0.45);
+}
+
+.cyber-chat-launcher-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cyber-chat-panel {
+  position: absolute;
+  right: 0;
+  bottom: 76px;
+  display: flex;
+  flex-direction: column;
+  width: 390px;
+  height: 540px;
+  max-height: calc(100vh - 130px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background: #202226;
+  box-shadow: 0 20px 65px rgba(0, 0, 0, 0.55);
+  animation: cyber-chat-appear 0.2s ease-out;
+}
+
+@keyframes cyber-chat-appear {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cyber-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #17191d;
+}
+
+.cyber-chat-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.cyber-chat-avatar,
+.cyber-message-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  background: rgba(59, 130, 246, 0.13);
+  color: #60a5fa;
+}
+
+.cyber-chat-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+}
+
+.cyber-chat-brand h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.cyber-chat-brand p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.cyber-online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+.cyber-chat-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.cyber-chat-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #94a3b8;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cyber-chat-actions button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.cyber-chat-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 17px;
+  overflow-y: auto;
+  padding: 20px 15px;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.cyber-message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.user-message-row {
+  justify-content: flex-end;
+}
+
+.cyber-message-avatar {
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+}
+
+.cyber-message {
+  max-width: 84%;
+  padding: 11px 13px;
+  border-radius: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cyber-ai-message {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom-left-radius: 4px;
+  background: #2c3036;
+  color: #e2e8f0;
+}
+
+.cyber-user-message {
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-bottom-right-radius: 4px;
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.cyber-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 37px;
+}
+
+.cyber-suggestions p {
+  margin: 0 0 2px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.cyber-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 9px;
+  background: rgba(59, 130, 246, 0.08);
+  color: #93c5fd;
+  font-size: 11px;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.cyber-suggestions button:hover {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.cyber-typing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 55px;
+  padding: 14px;
+}
+
+.cyber-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #60a5fa;
+  animation: cyber-typing 1s infinite ease-in-out;
+}
+
+.cyber-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.cyber-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes cyber-typing {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.cyber-chat-input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  margin: 0 13px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 13px;
+  background: #292d33;
+}
+
+.cyber-chat-input-area textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 90px;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f1f5f9;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.cyber-chat-input-area textarea::placeholder {
+  color: #64748b;
+}
+
+.cyber-chat-input-area button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: white;
+  transition: background 0.2s;
+}
+
+.cyber-chat-input-area button:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.cyber-chat-input-area button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.cyber-chat-footer {
+  margin: 0;
+  padding: 9px 10px 12px;
+  color: #64748b;
+  font-size: 9px;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .cyber-chatbot {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .cyber-chat-panel {
+    position: fixed;
+    right: 10px;
+    bottom: 82px;
+    left: 10px;
+    width: auto;
+    height: min(540px, calc(100dvh - 110px));
+    max-height: none;
+  }
+
+  .cyber-chat-launcher {
+    min-height: 54px;
+    padding: 0 16px;
+  }
+}

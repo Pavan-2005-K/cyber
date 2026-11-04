@@ -11,6 +11,7 @@ import {
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
 import { dashboardNavigation } from './dashboardNavigation'
+import CyberFusionChatbot from '../components/CyberFusionChatbot'
 
 function getPageTitle(pathname: string): string {
   const path = pathname.replace(/^\/dashboard\/?/, '')
@@ -241,6 +242,8 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      <CyberFusionChatbot />
     </div>
   )
 }

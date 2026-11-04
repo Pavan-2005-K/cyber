@@ -644,6 +644,9 @@ app.include_router(findings_router)
 from app.dashboard.router import router as dashboard_router
 app.include_router(dashboard_router)
 
+from app.chat.router import router as chat_router
+app.include_router(chat_router)
+
 
 
 # =========================================================

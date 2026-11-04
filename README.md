@@ -724,6 +724,8 @@ Configure the backend environment variables in Render:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `CYBERFUSION_JWT_SECRET`
+- `GEMINI_API_KEY` (set as a secret in the Render environment)
+- `GEMINI_MODEL=gemini-3.6-flash`
 - `CYBERFUSION_INTEGRITY_PRIVATE_KEY_FILE`
 - `CYBERFUSION_INTEGRITY_KEY_ID`
 - `CYBERFUSION_INTEGRITY_TRUSTED_PUBLIC_KEYS_FILE`

@@ -38,3 +38,4 @@ psycopg[binary]==3.3.7
 
 supabase==2.33.0
 androguard==4.1.4
+google-genai==2.34.0
