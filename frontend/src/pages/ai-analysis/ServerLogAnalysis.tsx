@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
@@ -5,59 +6,55 @@ import {
   Activity,
   AlertCircle,
   BadgeCheck,
-  FileSearch,
+  FileSpreadsheet,
+  FileUp,
   LoaderCircle,
   RotateCcw,
   ScanSearch,
   ShieldAlert,
+  X,
 } from 'lucide-react'
+
 import { getCases, type Case } from '../../services/caseService'
 import {
   analyzeServerLog,
+  analyzeServerLogCsv,
   type ServerLogAnalysisResponse,
+  type ServerLogBatchResponse,
   type ServerLogFeatures,
 } from '../../services/aiAnalysisService'
 
 type ServerLogFeatureName = keyof ServerLogFeatures
 
 const FEATURE_NAMES = [
-  'E1',
-  'E2',
-  'E3',
-  'E4',
-  'E5',
-  'E6',
-  'E7',
-  'E8',
-  'E9',
-  'E10',
-  'E11',
-  'E12',
-  'E13',
-  'E14',
-  'E15',
-  'E16',
-  'E17',
-  'E18',
-  'E19',
-  'E20',
-  'E21',
-  'E22',
-  'E23',
-  'E24',
-  'E25',
-  'E26',
-  'E27',
-  'E28',
-  'E29',
+  'E1', 'E2', 'E3', 'E4', 'E5',
+  'E6', 'E7', 'E8', 'E9', 'E10',
+  'E11', 'E12', 'E13', 'E14', 'E15',
+  'E16', 'E17', 'E18', 'E19', 'E20',
+  'E21', 'E22', 'E23', 'E24', 'E25',
+  'E26', 'E27', 'E28', 'E29',
 ] as const satisfies readonly ServerLogFeatureName[]
 
+const MAX_CSV_SIZE = 5 * 1024 * 1024
+
+// ---------------------------------------------------------
+// EMPTY FEATURE VALUES
+// ---------------------------------------------------------
+
 function createEmptyFeatureValues(): Record<ServerLogFeatureName, string> {
-  return Object.fromEntries(FEATURE_NAMES.map((name) => [name, ''])) as Record<
-    ServerLogFeatureName,
-    string
-  >
+  return {
+    E1: '', E2: '', E3: '', E4: '', E5: '',
+    E6: '', E7: '', E8: '', E9: '', E10: '',
+    E11: '', E12: '', E13: '', E14: '', E15: '',
+    E16: '', E17: '', E18: '', E19: '', E20: '',
+    E21: '', E22: '', E23: '', E24: '', E25: '',
+    E26: '', E27: '', E28: '', E29: '',
+  }
 }
+
+// ---------------------------------------------------------
+// API ERROR HANDLING
+// ---------------------------------------------------------
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -66,32 +63,54 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
     }
 
     const data: unknown = error.response.data
+
     if (typeof data === 'object' && data !== null && 'detail' in data) {
       const { detail } = data
+
       if (typeof detail === 'string') return detail
+
       if (typeof detail === 'object' && detail !== null) {
         const detailMessage =
           'message' in detail && typeof detail.message === 'string'
             ? detail.message
             : null
+
         const missing =
-          'missing_features' in detail && Array.isArray(detail.missing_features)
+          'missing_features' in detail &&
+          Array.isArray(detail.missing_features)
             ? detail.missing_features.filter(
-                (feature): feature is string => typeof feature === 'string',
+                (feature): feature is string =>
+                  typeof feature === 'string',
               )
             : []
+
         const unexpected =
           'unexpected_features' in detail &&
           Array.isArray(detail.unexpected_features)
             ? detail.unexpected_features.filter(
-                (feature): feature is string => typeof feature === 'string',
+                (feature): feature is string =>
+                  typeof feature === 'string',
               )
             : []
+
+        const column =
+          'column' in detail && typeof detail.column === 'string'
+            ? `Column: ${detail.column}.`
+            : null
+
+        const rows =
+          'csv_rows' in detail && Array.isArray(detail.csv_rows)
+            ? `CSV rows: ${detail.csv_rows.join(', ')}.`
+            : null
+
         const details = [
           detailMessage,
           missing.length ? `Missing: ${missing.join(', ')}.` : null,
           unexpected.length ? `Unexpected: ${unexpected.join(', ')}.` : null,
+          column,
+          rows,
         ].filter((message): message is string => message !== null)
+
         if (details.length) return details.join(' ')
       }
 
@@ -101,21 +120,27 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
             if (typeof item !== 'object' || item === null) return null
 
             const message =
-              'msg' in item && typeof item.msg === 'string' ? item.msg : null
+              'msg' in item && typeof item.msg === 'string'
+                ? item.msg
+                : null
+
             if (!message) return null
 
             const location =
               'loc' in item && Array.isArray(item.loc)
                 ? item.loc.filter(
                     (part): part is string | number =>
-                      typeof part === 'string' || typeof part === 'number',
+                      typeof part === 'string' ||
+                      typeof part === 'number',
                   )
                 : []
+
             return location.length
               ? `${location.slice(1).join('.') || location.join('.')}: ${message}`
               : message
           })
           .filter((message): message is string => message !== null)
+
         if (messages.length) return messages.join(' ')
       }
     }
@@ -123,50 +148,89 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
     if (error.response.status === 401) {
       return 'Your session may have expired. Please sign in again.'
     }
-    return fallback
-  }
 
-  if (
-    error instanceof Error &&
-    error.message ===
-      'Unable to connect. Please check your connection and try again.'
-  ) {
-    return 'Unable to connect to CyberFusion. Check your connection and try again.'
+    if (error.response.status === 404) {
+      return 'Case not found or access denied. Check the selected investigation case.'
+    }
+
+    if (error.response.status === 413) {
+      return 'The uploaded CSV file exceeds the 5 MB size limit.'
+    }
+
+    return fallback
   }
 
   return fallback
 }
+
+// ---------------------------------------------------------
+// SEVERITY STYLING
+// ---------------------------------------------------------
 
 function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
       return 'border-red-400/20 bg-red-400/10 text-red-300'
+
     case 'MEDIUM':
       return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+
     default:
       return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
   }
 }
 
+// ---------------------------------------------------------
+// PROBABILITY FORMATTING
+// ---------------------------------------------------------
+
 function formatProbability(value: number): string {
   return `${(value * 100).toFixed(2)}%`
 }
 
+// ---------------------------------------------------------
+// SERVER LOG ANALYSIS COMPONENT
+// ---------------------------------------------------------
+
 export default function ServerLogAnalysis() {
   const [cases, setCases] = useState<Case[]>([])
   const [caseId, setCaseId] = useState('')
-  const [featureValues, setFeatureValues] =
-    useState<Record<ServerLogFeatureName, string>>(createEmptyFeatureValues)
+
+  const [featureValues, setFeatureValues] = useState<
+    Record<ServerLogFeatureName, string>
+  >(createEmptyFeatureValues)
+
   const [invalidFeatures, setInvalidFeatures] = useState<
     ServerLogFeatureName[]
   >([])
-  const [result, setResult] = useState<ServerLogAnalysisResponse | null>(null)
+
+  // Manual analysis result
+  const [result, setResult] =
+    useState<ServerLogAnalysisResponse | null>(null)
+
+  // CSV batch analysis result
+  const [batchResult, setBatchResult] =
+    useState<ServerLogBatchResponse | null>(null)
+
+  // CSV file
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+
+  const csvInputRef = useRef<HTMLInputElement>(null)
+
   const [casesError, setCasesError] = useState('')
   const [analysisError, setAnalysisError] = useState('')
+
   const [isLoadingCases, setIsLoadingCases] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
   const submissionLock = useRef(false)
+  const csvSubmissionLock = useRef(false)
+
+  // -------------------------------------------------------
+  // LOAD INVESTIGATION CASES
+  // -------------------------------------------------------
 
   useEffect(() => {
     let active = true
@@ -174,13 +238,17 @@ export default function ServerLogAnalysis() {
     getCases()
       .then((data) => {
         if (!active) return
+
         setCases(data)
         setCaseId(data[0] ? String(data[0].id) : '')
       })
       .catch((error: unknown) => {
         if (active) {
           setCasesError(
-            getApiErrorMessage(error, 'Your cases could not be loaded.'),
+            getApiErrorMessage(
+              error,
+              'Your cases could not be loaded.',
+            ),
           )
         }
       })
@@ -192,6 +260,10 @@ export default function ServerLogAnalysis() {
       active = false
     }
   }, [])
+
+  // -------------------------------------------------------
+  // CONVERT FEATURE VALUES TO NUMBERS
+  // -------------------------------------------------------
 
   function getNumericFeatures(): ServerLogFeatures {
     return {
@@ -227,23 +299,39 @@ export default function ServerLogAnalysis() {
     }
   }
 
+  // -------------------------------------------------------
+  // MANUAL FEATURE ANALYSIS
+  // -------------------------------------------------------
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
     if (submissionLock.current) return
 
     setAnalysisError('')
     setResult(null)
+    setBatchResult(null)
+
     if (!caseId) {
-      setAnalysisError('Select a case before analyzing event-count features.')
+      setAnalysisError(
+        'Select a case before analyzing event-count features.',
+      )
       return
     }
 
     const invalid = FEATURE_NAMES.filter((featureName) => {
       const value = featureValues[featureName].trim()
-      return value === '' || !Number.isFinite(Number(value)) || Number(value) < 0
+
+      return (
+        value === '' ||
+        !Number.isFinite(Number(value)) ||
+        Number(value) < 0
+      )
     })
+
     setInvalidFeatures(invalid)
-    if (invalid.length) {
+
+    if (invalid.length > 0) {
       setAnalysisError(
         'Enter a finite, non-negative number for every event-count feature.',
       )
@@ -252,11 +340,13 @@ export default function ServerLogAnalysis() {
 
     submissionLock.current = true
     setIsAnalyzing(true)
+
     try {
       const analysis = await analyzeServerLog(
         Number(caseId),
         getNumericFeatures(),
       )
+
       setResult(analysis)
     } catch (error) {
       setAnalysisError(
@@ -271,14 +361,145 @@ export default function ServerLogAnalysis() {
     }
   }
 
-  function updateFeature(featureName: ServerLogFeatureName, value: string) {
-    setFeatureValues((current) => ({ ...current, [featureName]: value }))
+  // -------------------------------------------------------
+  // CSV FILE SELECTION
+  // -------------------------------------------------------
+
+  function handleCsvFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0] ?? null
+
+    setAnalysisError('')
+    setBatchResult(null)
+
+    if (!file) {
+      setCsvFile(null)
+      return
+    }
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setCsvFile(null)
+      event.target.value = ''
+      setAnalysisError('Please select a valid CSV file.')
+      return
+    }
+
+    if (file.size === 0) {
+      setCsvFile(null)
+      event.target.value = ''
+      setAnalysisError('The selected CSV file is empty.')
+      return
+    }
+
+    if (file.size > MAX_CSV_SIZE) {
+      setCsvFile(null)
+      event.target.value = ''
+      setAnalysisError('CSV file must be 5 MB or smaller.')
+      return
+    }
+
+    setCsvFile(file)
+  }
+
+  // -------------------------------------------------------
+  // REMOVE CSV FILE
+  // -------------------------------------------------------
+
+  function removeCsvFile() {
+    setCsvFile(null)
+    setBatchResult(null)
+    setAnalysisError('')
+
+    if (csvInputRef.current) {
+      csvInputRef.current.value = ''
+    }
+  }
+
+  // -------------------------------------------------------
+  // CSV BATCH ANALYSIS
+  // -------------------------------------------------------
+
+  async function handleCsvSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
+
+    if (csvSubmissionLock.current) return
+
+    setAnalysisError('')
+    setBatchResult(null)
+    setResult(null)
+
+    if (!caseId) {
+      setAnalysisError(
+        'Select an investigation case before uploading a CSV.',
+      )
+      return
+    }
+
+    if (!csvFile) {
+      setAnalysisError('Please select a CSV file first.')
+      return
+    }
+
+    if (!csvFile.name.toLowerCase().endsWith('.csv')) {
+      setAnalysisError('Please upload a valid CSV file.')
+      return
+    }
+
+    if (csvFile.size > MAX_CSV_SIZE) {
+      setAnalysisError('CSV file must be 5 MB or smaller.')
+      return
+    }
+
+    csvSubmissionLock.current = true
+    setIsUploading(true)
+
+    try {
+      const analysis = await analyzeServerLogCsv(
+        Number(caseId),
+        csvFile,
+      )
+
+      setBatchResult(analysis)
+    } catch (error) {
+      setAnalysisError(
+        getApiErrorMessage(
+          error,
+          'Server log CSV analysis failed. Please try again.',
+        ),
+      )
+    } finally {
+      csvSubmissionLock.current = false
+      setIsUploading(false)
+    }
+  }
+
+  // -------------------------------------------------------
+  // UPDATE FEATURE INPUT
+  // -------------------------------------------------------
+
+  function updateFeature(
+    featureName: ServerLogFeatureName,
+    value: string,
+  ) {
+    setFeatureValues((current) => ({
+      ...current,
+      [featureName]: value,
+    }))
+
     setInvalidFeatures((current) =>
-      current.filter((invalidFeature) => invalidFeature !== featureName),
+      current.filter((item) => item !== featureName),
     )
+
     setResult(null)
     setAnalysisError('')
   }
+
+  // -------------------------------------------------------
+  // RESET MANUAL ANALYSIS
+  // -------------------------------------------------------
 
   function resetAnalysis() {
     setFeatureValues(createEmptyFeatureValues())
@@ -287,14 +508,20 @@ export default function ServerLogAnalysis() {
     setAnalysisError('')
   }
 
+  // -------------------------------------------------------
+  // RETRY LOADING CASES
+  // -------------------------------------------------------
+
   function retryCases() {
     setIsLoadingCases(true)
     setCasesError('')
+
     getCases()
       .then((data) => {
         setCases(data)
+
         setCaseId((current) =>
-          data.some((caseItem) => String(caseItem.id) === current)
+          data.some((item) => String(item.id) === current)
             ? current
             : data[0]
               ? String(data[0].id)
@@ -303,11 +530,18 @@ export default function ServerLogAnalysis() {
       })
       .catch((error: unknown) => {
         setCasesError(
-          getApiErrorMessage(error, 'Your cases could not be loaded.'),
+          getApiErrorMessage(
+            error,
+            'Your cases could not be loaded.',
+          ),
         )
       })
       .finally(() => setIsLoadingCases(false))
   }
+
+  // -------------------------------------------------------
+  // FEATURE INPUT COMPONENT
+  // -------------------------------------------------------
 
   function renderFeatureInput(featureName: ServerLogFeatureName) {
     const hasError = invalidFeatures.includes(featureName)
@@ -319,10 +553,12 @@ export default function ServerLogAnalysis() {
           className="block text-xs font-medium text-slate-300"
         >
           {featureName}
+
           <span className="ml-1 text-red-300" aria-hidden="true">
             *
           </span>
         </label>
+
         <input
           id={`server-log-${featureName}`}
           type="number"
@@ -337,7 +573,9 @@ export default function ServerLogAnalysis() {
           disabled={isAnalyzing}
           aria-invalid={hasError}
           aria-describedby={
-            hasError ? `server-log-error-${featureName}` : undefined
+            hasError
+              ? `server-log-error-${featureName}`
+              : undefined
           }
           className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:ring-4 disabled:opacity-60 ${
             hasError
@@ -346,6 +584,7 @@ export default function ServerLogAnalysis() {
           }`}
           placeholder="Enter event count"
         />
+
         {hasError && (
           <p
             id={`server-log-error-${featureName}`}
@@ -358,26 +597,49 @@ export default function ServerLogAnalysis() {
     )
   }
 
-  const selectedCase = cases.find((caseItem) => String(caseItem.id) === caseId)
-  const completedFeatures = FEATURE_NAMES.filter((featureName) => {
-    const value = featureValues[featureName].trim()
-    return value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0
+  // -------------------------------------------------------
+  // DERIVED VALUES
+  // -------------------------------------------------------
+
+  const selectedCase = cases.find(
+    (item) => String(item.id) === caseId,
+  )
+
+  const completedFeatures = FEATURE_NAMES.filter((name) => {
+    const value = featureValues[name].trim()
+
+    return (
+      value !== '' &&
+      Number.isFinite(Number(value)) &&
+      Number(value) >= 0
+    )
   }).length
+
+  // -------------------------------------------------------
+  // UI
+  // -------------------------------------------------------
 
   return (
     <section className="mx-auto max-w-6xl space-y-6">
+
+      {/* HEADER */}
+
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
           AI Analysis
         </p>
+
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           Server Log Analysis
         </h1>
+
         <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
-          Submit numerical event-count features for model assessment and save
-          the result to an investigation case.
+          Analyze HDFS server log event-count features and save
+          model assessments to an investigation case.
         </p>
       </header>
+
+      {/* CASE LOADING ERROR */}
 
       {casesError && (
         <div
@@ -385,34 +647,388 @@ export default function ServerLogAnalysis() {
           className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="flex items-center gap-2 text-sm text-red-300">
-            <AlertCircle size={17} aria-hidden="true" />
+            <AlertCircle size={17} />
             {casesError}
           </p>
+
           <button
             type="button"
             onClick={retryCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 sm:self-auto"
+            disabled={isLoadingCases}
+            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 disabled:opacity-50 sm:self-auto"
           >
-            Retry
+            {isLoadingCases ? 'Loading…' : 'Retry'}
           </button>
         </div>
       )}
+
+      {/* ANALYSIS ERROR */}
 
       {analysisError && (
         <p
           role="alert"
           className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
         >
-          <AlertCircle
-            size={17}
-            className="mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
+          <AlertCircle size={17} className="mt-0.5 shrink-0" />
           <span>{analysisError}</span>
         </p>
       )}
 
+      {/* CSV BATCH UPLOAD */}
+
+      <section className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7">
+        <div className="flex items-start gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-400/20 bg-purple-500/10 text-purple-300">
+            <FileSpreadsheet size={21} />
+          </span>
+
+          <div>
+            <h2 className="text-base font-semibold text-white">
+              CSV Batch Analysis
+            </h2>
+
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+              Upload a processed HDFS feature CSV to analyze multiple
+              blocks in one request.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleCsvSubmit} className="mt-5 space-y-4">
+
+          {/* CSV FILE INPUT */}
+
+          <div
+            className="rounded-xl border border-dashed border-white/15 bg-[#292b2e] p-5 transition hover:border-purple-400/40 sm:p-7"
+          >
+            <input
+              ref={csvInputRef}
+              id="server-log-csv"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleCsvFileChange}
+              disabled={isUploading}
+              className="hidden"
+            />
+
+            {!csvFile ? (
+              <label
+                htmlFor="server-log-csv"
+                className="flex cursor-pointer flex-col items-center text-center"
+              >
+                <span className="flex size-12 items-center justify-center rounded-xl bg-purple-500/10 text-purple-300">
+                  <FileUp size={23} />
+                </span>
+
+                <span className="mt-3 text-sm font-semibold text-slate-100">
+                  Click to upload CSV file
+                </span>
+
+                <span className="mt-1 text-xs text-slate-500">
+                  CSV format · Maximum file size 5 MB
+                </span>
+              </label>
+            ) : (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-300">
+                    <FileSpreadsheet size={21} />
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-white">
+                      {csvFile.name}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {(csvFile.size / 1024).toFixed(2)} KB · Ready for analysis
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={removeCsvFile}
+                  disabled={isUploading}
+                  aria-label="Remove selected CSV"
+                  className="flex size-9 shrink-0 items-center justify-center self-end rounded-lg border border-white/10 text-slate-400 transition hover:border-red-400/30 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50 sm:self-auto"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* CSV FORMAT INFORMATION */}
+
+          <div className="rounded-lg border border-blue-400/10 bg-blue-500/[0.05] p-3">
+            <p className="text-xs font-medium text-blue-200">
+              Required CSV format
+            </p>
+
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+              Include all 29 numerical columns E1–E29. Optional
+              metadata columns BlockId, Label, Type, and target_label
+              are ignored by the model.
+            </p>
+          </div>
+
+          {/* UPLOAD BUTTON */}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500">
+              Selected case: {selectedCase?.case_number ?? 'No case selected'}
+            </p>
+
+            <button
+              type="submit"
+              disabled={
+                isUploading ||
+                isLoadingCases ||
+                !caseId ||
+                !csvFile
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2.5"
+            >
+              {isUploading ? (
+                <LoaderCircle size={16} className="animate-spin" />
+              ) : (
+                <ScanSearch size={16} />
+              )}
+
+              {isUploading ? 'Analyzing CSV…' : 'Analyze CSV'}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* CSV BATCH RESULTS */}
+
+      {batchResult && (
+        <section
+          aria-live="polite"
+          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+        >
+          <div className="flex flex-col gap-3 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-400">
+                CSV Batch Results
+              </p>
+
+              <h2 className="mt-1.5 text-lg font-semibold text-white">
+                Server Log Analysis
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {batchResult.filename}
+              </p>
+            </div>
+
+            <span
+              className={`inline-flex self-start rounded-full border px-3 py-1.5 text-xs font-semibold uppercase ${getSeverityStyle(batchResult.severity)}`}
+            >
+              {batchResult.severity} severity
+            </span>
+          </div>
+
+          {/* SUMMARY CARDS */}
+
+          <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4 sm:p-7">
+            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Total blocks
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-white">
+                {batchResult.total_blocks}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-red-400/10 bg-red-400/[0.04] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-300/70">
+                Anomalies
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-red-300">
+                {batchResult.anomaly_blocks}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/[0.04] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+                Normal blocks
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-emerald-300">
+                {batchResult.normal_blocks}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Anomaly rate
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-white">
+                {batchResult.anomaly_percentage.toFixed(2)}%
+              </p>
+            </div>
+          </div>
+
+          {/* ADDITIONAL METADATA */}
+
+          <div className="grid gap-3 px-5 pb-5 sm:grid-cols-3 sm:px-7">
+            <div className="rounded-lg border border-white/[0.06] bg-[#292b2e] p-3">
+              <p className="text-[11px] text-slate-500">
+                Average confidence
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-white">
+                {formatProbability(batchResult.average_confidence)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-white/[0.06] bg-[#292b2e] p-3">
+              <p className="text-[11px] text-slate-500">
+                Decision threshold
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-white">
+                {formatProbability(batchResult.threshold)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-white/[0.06] bg-[#292b2e] p-3">
+              <p className="text-[11px] text-slate-500">
+                Model
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-white">
+                {batchResult.model}
+              </p>
+            </div>
+          </div>
+
+          {/* BLOCK RESULTS TABLE */}
+
+          <div className="border-t border-white/[0.07]">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-5 sm:px-7">
+              <div>
+                <h3 className="text-sm font-semibold text-white">
+                  Individual block predictions
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Predictions for each HDFS block in the uploaded CSV.
+                </p>
+              </div>
+
+              <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400">
+                {batchResult.results.length} records
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-xs">
+                <thead className="bg-[#242629] text-[10px] uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold sm:px-7">
+                      #
+                    </th>
+
+                    <th className="px-4 py-3 font-semibold">
+                      Block ID
+                    </th>
+
+                    <th className="px-4 py-3 font-semibold">
+                      Prediction
+                    </th>
+
+                    <th className="px-4 py-3 font-semibold">
+                      Anomaly probability
+                    </th>
+
+                    <th className="px-4 py-3 font-semibold">
+                      Normal probability
+                    </th>
+
+                    <th className="px-4 py-3 font-semibold">
+                      Confidence
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-white/[0.05]">
+                  {batchResult.results.map((item) => (
+                    <tr
+                      key={item.block_index}
+                      className="transition hover:bg-white/[0.025]"
+                    >
+                      <td className="px-5 py-3.5 text-slate-500 sm:px-7">
+                        {item.block_index}
+                      </td>
+
+                      <td className="px-4 py-3.5 font-mono text-slate-300">
+                        {item.block_id ?? `Block ${item.block_index}`}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${
+                            item.class === 1
+                              ? 'border-red-400/20 bg-red-400/10 text-red-300'
+                              : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                          }`}
+                        >
+                          {item.prediction}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-red-300">
+                        {formatProbability(item.anomaly_probability)}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-emerald-300">
+                        {formatProbability(item.normal_probability)}
+                      </td>
+
+                      <td className="px-4 py-3.5 font-medium text-slate-200">
+                        {formatProbability(item.confidence)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* SAVED FINDING */}
+
+          <div className="m-5 flex flex-col gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:m-7 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
+                <BadgeCheck size={15} />
+                Finding successfully saved
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                {batchResult.message}
+              </p>
+            </div>
+
+            <span className="self-start rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+              Finding #{batchResult.finding_id}
+            </span>
+          </div>
+        </section>
+      )}
+
+      {/* MANUAL ANALYSIS AND INFORMATION */}
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
+
+        {/* MANUAL INPUT FORM */}
+
         <form
           onSubmit={handleSubmit}
           noValidate
@@ -420,19 +1036,24 @@ export default function ServerLogAnalysis() {
         >
           <div className="flex items-start gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
-              <Activity size={21} aria-hidden="true" />
+              <Activity size={21} />
             </span>
+
             <div>
               <h2 className="text-base font-semibold text-white">
-                HDFS event-count features
+                Manual Feature Analysis
               </h2>
+
               <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                Enter all 29 non-negative numerical feature values.
+                Enter the 29 HDFS event-count features manually.
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-5">
+
+            {/* CASE SELECTION */}
+
             <div className="space-y-2">
               <label
                 htmlFor="server-log-case"
@@ -440,29 +1061,40 @@ export default function ServerLogAnalysis() {
               >
                 Investigation case
               </label>
+
               <select
                 id="server-log-case"
                 value={caseId}
                 onChange={(event) => {
                   setCaseId(event.target.value)
                   setResult(null)
+                  setBatchResult(null)
                   setAnalysisError('')
                 }}
-                disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
+                disabled={
+                  isLoadingCases ||
+                  cases.length === 0 ||
+                  isAnalyzing ||
+                  isUploading
+                }
                 required
                 className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
               >
                 {cases.length === 0 && (
                   <option value="">
-                    {isLoadingCases ? 'Loading cases…' : 'No cases available'}
+                    {isLoadingCases
+                      ? 'Loading cases…'
+                      : 'No cases available'}
                   </option>
                 )}
-                {cases.map((caseItem) => (
-                  <option key={caseItem.id} value={caseItem.id}>
-                    {caseItem.case_number} — {caseItem.title}
+
+                {cases.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.case_number} — {item.title}
                   </option>
                 ))}
               </select>
+
               {selectedCase && (
                 <p className="text-xs text-slate-500">
                   Successful analysis is saved to this case automatically.
@@ -470,26 +1102,32 @@ export default function ServerLogAnalysis() {
               )}
             </div>
 
+            {/* FEATURE INPUTS */}
+
             <div className="rounded-xl border border-white/[0.07] bg-[#292b2e] p-4 sm:p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-100">
                     Event-count values
                   </h3>
+
                   <p className="mt-1 text-xs text-slate-500">
-                    The backend configuration does not define descriptions or
-                    subgroups for individual E-fields.
+                    All 29 model input features are required.
                   </p>
                 </div>
+
                 <span className="rounded-full border border-blue-400/15 bg-blue-500/[0.08] px-2.5 py-1 text-[11px] font-medium text-blue-200">
                   {completedFeatures} / 29 complete
                 </span>
               </div>
+
               <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                 {FEATURE_NAMES.map(renderFeatureInput)}
               </div>
             </div>
           </div>
+
+          {/* ACTION BUTTONS */}
 
           <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
             <button
@@ -498,49 +1136,54 @@ export default function ServerLogAnalysis() {
               disabled={isAnalyzing}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
             >
-              <RotateCcw size={15} aria-hidden="true" />
+              <RotateCcw size={15} />
               Reset
             </button>
+
             <button
               type="submit"
               disabled={
                 isAnalyzing ||
+                isUploading ||
                 isLoadingCases ||
                 !caseId ||
-                completedFeatures !== FEATURE_NAMES.length
+                completedFeatures !== 29
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             >
               {isAnalyzing ? (
-                <LoaderCircle
-                  size={16}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
+                <LoaderCircle size={16} className="animate-spin" />
               ) : (
-                <ScanSearch size={16} aria-hidden="true" />
+                <ScanSearch size={16} />
               )}
-              {isAnalyzing ? 'Analyzing features…' : 'Analyze server features'}
+
+              {isAnalyzing
+                ? 'Analyzing features…'
+                : 'Analyze server features'}
             </button>
           </div>
         </form>
 
+        {/* INFORMATION PANEL */}
+
         <aside className="space-y-4">
+
           <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.055] p-5 sm:p-6">
             <div className="flex items-start gap-3">
-              <FileSearch
+              <Activity
                 size={19}
                 className="mt-0.5 shrink-0 text-blue-300"
-                aria-hidden="true"
               />
+
               <div>
                 <h2 className="text-sm font-semibold text-blue-100">
                   Feature-based input
                 </h2>
+
                 <p className="mt-2 text-xs leading-relaxed text-slate-400">
                   The model expects numerical HDFS block-level event
-                  occurrence counts. This page sends feature values; it does
-                  not directly parse or upload raw server log files.
+                  occurrence features. Manual input sends one block
+                  for prediction.
                 </p>
               </div>
             </div>
@@ -551,16 +1194,17 @@ export default function ServerLogAnalysis() {
               <ShieldAlert
                 size={19}
                 className="mt-0.5 shrink-0 text-amber-300"
-                aria-hidden="true"
               />
+
               <div>
                 <h2 className="text-sm font-semibold text-amber-100">
                   AI-assisted assessment
                 </h2>
+
                 <p className="mt-2 text-xs leading-relaxed text-slate-400">
                   An anomaly prediction is not definitive proof of an
-                  intrusion. Treat model output as decision support; real-world
-                  performance requires independent evaluation.
+                  intrusion. Treat model output as decision support.
+                  Independent evaluation is required for real-world use.
                 </p>
               </div>
             </div>
@@ -571,19 +1215,22 @@ export default function ServerLogAnalysis() {
               <BadgeCheck
                 size={17}
                 className="text-emerald-300"
-                aria-hidden="true"
               />
+
               <h2 className="text-sm font-semibold text-white">
                 Automatically saved finding
               </h2>
             </div>
+
             <p className="mt-2 text-xs leading-relaxed text-slate-400">
-              Successful case-linked analysis is automatically saved to the
-              selected case and returns a finding ID.
+              Successful case-linked analysis is automatically saved
+              to the selected case and returns a finding ID.
             </p>
           </div>
         </aside>
       </div>
+
+      {/* MANUAL ANALYSIS RESULT */}
 
       {result && (
         <section
@@ -593,12 +1240,14 @@ export default function ServerLogAnalysis() {
           <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
-                Analysis result
+                Manual Analysis Result
               </p>
+
               <h2 className="mt-1.5 text-lg font-semibold text-white">
                 {result.module}
               </h2>
             </div>
+
             <span
               className={`inline-flex self-start rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${getSeverityStyle(result.severity)}`}
             >
@@ -607,70 +1256,86 @@ export default function ServerLogAnalysis() {
           </div>
 
           <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
+
             <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Prediction
               </p>
+
               <p className="mt-2 text-lg font-semibold text-white">
                 {result.prediction}
               </p>
+
               <p className="mt-1 text-xs text-slate-500">
                 Classification: {result.class}
               </p>
             </div>
+
             <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Confidence
               </p>
+
               <p className="mt-2 text-lg font-semibold text-white">
                 {formatProbability(result.confidence)}
               </p>
             </div>
+
             <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Anomaly probability
               </p>
+
               <p className="mt-2 text-lg font-semibold text-red-200">
                 {formatProbability(result.anomaly_probability)}
               </p>
             </div>
+
             <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Normal probability
               </p>
+
               <p className="mt-2 text-lg font-semibold text-emerald-200">
                 {formatProbability(result.normal_probability)}
               </p>
             </div>
+
             <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Decision threshold
               </p>
+
               <p className="mt-2 text-lg font-semibold text-slate-100">
                 {formatProbability(result.threshold)}
               </p>
             </div>
+
             <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Model &amp; dataset
+                Model and dataset
               </p>
+
               <p className="mt-2 text-sm font-medium text-slate-100">
                 {result.model}
               </p>
+
               <p className="mt-1 text-xs text-slate-500">
                 {result.dataset} · {result.input_features} features
               </p>
             </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2 lg:col-span-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
                   Finding saved to case #{result.case_id}
-                  {selectedCase ? ` · ${selectedCase.case_number}` : ''}
                 </p>
+
                 <p className="mt-1 text-sm font-medium text-emerald-200">
                   {result.message}
                 </p>
               </div>
+
               <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
                 Finding #{result.finding_id}
               </span>

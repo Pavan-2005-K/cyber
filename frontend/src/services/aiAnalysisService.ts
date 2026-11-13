@@ -1,4 +1,9 @@
+
 import { api } from './api'
+
+// =========================================================
+// PHISHING URL ANALYSIS
+// =========================================================
 
 export interface PhishingUrlAnalysisResponse {
   module: string
@@ -10,6 +15,10 @@ export interface PhishingUrlAnalysisResponse {
   severity: string
   message: string
 }
+
+// =========================================================
+// FAKE PROFILE ANALYSIS
+// =========================================================
 
 export interface FakeProfileRequest {
   username: string
@@ -33,6 +42,38 @@ export interface FakeProfileResponse {
   severity: string
   message: string
 }
+
+// Fake Profile CSV batch-analysis interfaces
+
+export interface FakeProfileBatchResult {
+  row_number: number
+  username: string
+  prediction: string
+  class: number
+  fake_probability: number
+  genuine_probability: number
+  confidence: number
+}
+
+export interface FakeProfileBatchResponse {
+  module: string
+  case_id: number
+  finding_id: number
+  filename: string
+  total_profiles: number
+  fake_profiles: number
+  genuine_profiles: number
+  fake_percentage: number
+  average_confidence: number
+  severity: string
+  model: string
+  results: FakeProfileBatchResult[]
+  message: string
+}
+
+// =========================================================
+// FAKE EMAIL ANALYSIS
+// =========================================================
 
 export interface FakeEmailTextRequest {
   email_text: string
@@ -75,6 +116,10 @@ export interface FakeEmailFileResponse {
   message: string
 }
 
+// =========================================================
+// SCAM MESSAGE ANALYSIS
+// =========================================================
+
 export interface ScamMessageRequest {
   text: string
 }
@@ -89,6 +134,10 @@ export interface ScamMessageResponse {
   severity: string
   message: string
 }
+
+// =========================================================
+// IMAGE FORGERY ANALYSIS
+// =========================================================
 
 export interface ImageForgeryResponse {
   module: string
@@ -106,6 +155,10 @@ export interface ImageForgeryResponse {
   model: string
   message: string
 }
+
+// =========================================================
+// APK MALWARE ANALYSIS
+// =========================================================
 
 export interface ApkAnalysisResponse {
   module: string
@@ -125,6 +178,10 @@ export interface ApkAnalysisResponse {
   message: string
 }
 
+// =========================================================
+// CHAT AND EMAIL FORENSICS
+// =========================================================
+
 export interface ChatEmailForensicsRequest {
   text: string
 }
@@ -142,6 +199,10 @@ export interface ChatEmailForensicsResponse {
   model: string
   message: string
 }
+
+// =========================================================
+// CREDIT CARD FRAUD ANALYSIS
+// =========================================================
 
 export interface CreditCardFraudFeatures {
   Time: number
@@ -195,6 +256,35 @@ export interface CreditCardFraudResponse {
   input_features: number
   message: string
 }
+
+// Credit Card Fraud CSV batch-analysis interfaces
+
+export interface CreditCardFraudBatchTransaction {
+  transaction_index: number
+  prediction: string
+  class: number
+  fraud_probability: number
+  legitimate_probability: number
+}
+
+export interface CreditCardFraudBatchResponse {
+  module: string
+  case_id: number
+  finding_id: number
+  filename: string
+  total_transactions: number
+  fraudulent_transactions: number
+  legitimate_transactions: number
+  fraud_percentage: number
+  threshold: number
+  model: string
+  results: CreditCardFraudBatchTransaction[]
+  message: string
+}
+
+// =========================================================
+// NETWORK INTRUSION ANALYSIS
+// =========================================================
 
 export interface NetworkIntrusionFeatures {
   duration: number
@@ -261,6 +351,36 @@ export interface NetworkIntrusionResponse {
   dataset: string
 }
 
+// Network Intrusion CSV batch-analysis interfaces
+
+export interface NetworkIntrusionBatchTransaction {
+  connection_index: number
+  prediction: string
+  class: number
+  attack_probability: number
+  normal_probability: number
+}
+
+export interface NetworkIntrusionBatchResponse {
+  module: string
+  case_id: number
+  finding_id: number
+  filename: string
+  total_connections: number
+  attack_connections: number
+  normal_connections: number
+  attack_percentage: number
+  threshold: number
+  model: string
+  dataset: string
+  results: NetworkIntrusionBatchTransaction[]
+  message: string
+}
+
+// =========================================================
+// SERVER LOG ANALYSIS
+// =========================================================
+
 export interface ServerLogFeatures {
   E1: number
   E2: number
@@ -314,6 +434,40 @@ export interface ServerLogAnalysisResponse {
   message: string
 }
 
+// Server Log CSV batch-analysis interfaces
+
+export interface ServerLogBatchBlock {
+  block_index: number
+  block_id: string | null
+  prediction: string
+  class: number
+  anomaly_probability: number
+  normal_probability: number
+  confidence: number
+}
+
+export interface ServerLogBatchResponse {
+  module: string
+  case_id: number
+  finding_id: number
+  filename: string
+  total_blocks: number
+  anomaly_blocks: number
+  normal_blocks: number
+  anomaly_percentage: number
+  average_confidence: number
+  severity: string
+  threshold: number
+  model: string
+  dataset: string
+  results: ServerLogBatchBlock[]
+  message: string
+}
+
+// =========================================================
+// PHISHING URL API
+// =========================================================
+
 export async function analyzePhishingUrl(
   caseId: number,
   url: string,
@@ -322,8 +476,13 @@ export async function analyzePhishingUrl(
     `/api/phishing-url/cases/${caseId}/predict`,
     { url },
   )
+
   return response.data
 }
+
+// =========================================================
+// SERVER LOG ANALYSIS API
+// =========================================================
 
 export async function analyzeServerLog(
   caseId: number,
@@ -333,8 +492,33 @@ export async function analyzeServerLog(
     `/api/server-log-analysis/cases/${caseId}/predict`,
     { features } satisfies ServerLogAnalysisRequest,
   )
+
   return response.data
 }
+
+// Server Log CSV batch analysis
+
+export async function analyzeServerLogCsv(
+  caseId: number,
+  file: File,
+): Promise<ServerLogBatchResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post<ServerLogBatchResponse>(
+    `/api/server-log-analysis/cases/${caseId}/analyze-csv`,
+    formData,
+    {
+      headers: { 'Content-Type': null },
+    },
+  )
+
+  return response.data
+}
+
+// =========================================================
+// FAKE EMAIL ANALYSIS API
+// =========================================================
 
 export async function analyzeFakeEmailText(
   caseId: number,
@@ -344,6 +528,7 @@ export async function analyzeFakeEmailText(
     `/api/fake-email/cases/${caseId}/predict`,
     { email_text: emailText } satisfies FakeEmailTextRequest,
   )
+
   return response.data
 }
 
@@ -361,8 +546,13 @@ export async function analyzeFakeEmailFile(
       headers: { 'Content-Type': null },
     },
   )
+
   return response.data
 }
+
+// =========================================================
+// NETWORK INTRUSION ANALYSIS API
+// =========================================================
 
 export async function analyzeNetworkIntrusion(
   caseId: number,
@@ -370,10 +560,35 @@ export async function analyzeNetworkIntrusion(
 ): Promise<NetworkIntrusionResponse> {
   const response = await api.post<NetworkIntrusionResponse>(
     `/api/network-intrusion/cases/${caseId}/predict`,
-    { features } satisfies NetworkIntrusionRequest,
+    { features },
   )
+
   return response.data
 }
+
+// Network Intrusion CSV batch analysis
+
+export async function analyzeNetworkIntrusionCsv(
+  caseId: number,
+  file: File,
+): Promise<NetworkIntrusionBatchResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post<NetworkIntrusionBatchResponse>(
+    `/api/network-intrusion/cases/${caseId}/analyze-csv`,
+    formData,
+    {
+      headers: { 'Content-Type': null },
+    },
+  )
+
+  return response.data
+}
+
+// =========================================================
+// CREDIT CARD FRAUD ANALYSIS API
+// =========================================================
 
 export async function analyzeCreditCardFraud(
   caseId: number,
@@ -381,10 +596,35 @@ export async function analyzeCreditCardFraud(
 ): Promise<CreditCardFraudResponse> {
   const response = await api.post<CreditCardFraudResponse>(
     `/api/credit-card-fraud/cases/${caseId}/predict`,
-    { features } satisfies CreditCardFraudRequest,
+    { features },
   )
+
   return response.data
 }
+
+// Credit Card Fraud CSV batch analysis
+
+export async function analyzeCreditCardFraudCsv(
+  caseId: number,
+  file: File,
+): Promise<CreditCardFraudBatchResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post<CreditCardFraudBatchResponse>(
+    `/api/credit-card-fraud/cases/${caseId}/analyze-csv`,
+    formData,
+    {
+      headers: { 'Content-Type': null },
+    },
+  )
+
+  return response.data
+}
+
+// =========================================================
+// CHAT AND EMAIL FORENSICS API
+// =========================================================
 
 export async function analyzeChatEmail(
   caseId: number,
@@ -392,10 +632,15 @@ export async function analyzeChatEmail(
 ): Promise<ChatEmailForensicsResponse> {
   const response = await api.post<ChatEmailForensicsResponse>(
     `/api/chat-email-forensics/cases/${caseId}/predict`,
-    { text } satisfies ChatEmailForensicsRequest,
+    { text },
   )
+
   return response.data
 }
+
+// =========================================================
+// APK MALWARE ANALYSIS API
+// =========================================================
 
 export async function analyzeApk(
   caseId: number,
@@ -408,12 +653,16 @@ export async function analyzeApk(
     `/api/apk-analysis/cases/${caseId}/predict`,
     formData,
     {
-      // Remove the shared JSON default so the browser can add the multipart boundary.
       headers: { 'Content-Type': null },
     },
   )
+
   return response.data
 }
+
+// =========================================================
+// IMAGE FORGERY ANALYSIS API
+// =========================================================
 
 export async function analyzeImageForgery(
   caseId: number,
@@ -426,12 +675,16 @@ export async function analyzeImageForgery(
     `/api/image-forgery/cases/${caseId}/predict`,
     formData,
     {
-      // Remove the shared JSON default so the browser can add the multipart boundary.
       headers: { 'Content-Type': null },
     },
   )
+
   return response.data
 }
+
+// =========================================================
+// SCAM MESSAGE ANALYSIS API
+// =========================================================
 
 export async function analyzeScamMessage(
   caseId: number,
@@ -439,10 +692,15 @@ export async function analyzeScamMessage(
 ): Promise<ScamMessageResponse> {
   const response = await api.post<ScamMessageResponse>(
     `/api/scam-detection/cases/${caseId}/predict`,
-    { text } satisfies ScamMessageRequest,
+    { text },
   )
+
   return response.data
 }
+
+// =========================================================
+// FAKE PROFILE ANALYSIS API
+// =========================================================
 
 export async function analyzeFakeProfile(
   caseId: number,
@@ -452,5 +710,28 @@ export async function analyzeFakeProfile(
     `/api/fake-profile/cases/${caseId}/predict`,
     data,
   )
+
+  return response.data
+}
+
+// =========================================================
+// FAKE PROFILE CSV BATCH ANALYSIS API
+// =========================================================
+
+export async function analyzeFakeProfileCsv(
+  caseId: number,
+  file: File,
+): Promise<FakeProfileBatchResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post<FakeProfileBatchResponse>(
+    `/api/fake-profile/cases/${caseId}/analyze-csv`,
+    formData,
+    {
+      headers: { 'Content-Type': null },
+    },
+  )
+
   return response.data
 }

@@ -1,21 +1,26 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
 import {
-  Activity,
   AlertCircle,
   BadgeCheck,
+  FileSpreadsheet,
   LoaderCircle,
   Network,
   RotateCcw,
   ScanSearch,
   ShieldAlert,
+  Upload,
 } from 'lucide-react'
+
 import { getCases, type Case } from '../../services/caseService'
 import {
   analyzeNetworkIntrusion,
+  analyzeNetworkIntrusionCsv,
   type NetworkIntrusionFeatures,
   type NetworkIntrusionResponse,
+  type NetworkIntrusionBatchResponse,
 } from '../../services/aiAnalysisService'
 
 type NetworkFeatureName = keyof NetworkIntrusionFeatures
@@ -67,67 +72,40 @@ const FEATURE_NAMES = [
 const FEATURE_GROUPS = [
   {
     title: 'Basic connection details',
-    description: 'Connection protocol, service, status, duration, and bytes.',
+    description: 'Protocol, service, connection status and data transfer.',
     features: [
-      'duration',
-      'protocol_type',
-      'service',
-      'flag',
-      'src_bytes',
-      'dst_bytes',
-      'land',
-      'wrong_fragment',
-      'urgent',
+      'duration', 'protocol_type', 'service', 'flag', 'src_bytes',
+      'dst_bytes', 'land', 'wrong_fragment', 'urgent',
     ],
   },
   {
     title: 'Content and login features',
-    description: 'Host access, login, shell, and content indicators.',
+    description: 'Login, shell and access indicators.',
     features: [
-      'hot',
-      'num_failed_logins',
-      'logged_in',
-      'num_compromised',
-      'root_shell',
-      'su_attempted',
-      'num_root',
-      'num_file_creations',
-      'num_shells',
-      'num_access_files',
-      'num_outbound_cmds',
-      'is_host_login',
-      'is_guest_login',
+      'hot', 'num_failed_logins', 'logged_in', 'num_compromised',
+      'root_shell', 'su_attempted', 'num_root', 'num_file_creations',
+      'num_shells', 'num_access_files', 'num_outbound_cmds',
+      'is_host_login', 'is_guest_login',
     ],
   },
   {
     title: 'Traffic statistics',
     description: 'Connection counts and service/error rates.',
     features: [
-      'count',
-      'srv_count',
-      'serror_rate',
-      'srv_serror_rate',
-      'rerror_rate',
-      'srv_rerror_rate',
-      'same_srv_rate',
-      'diff_srv_rate',
-      'srv_diff_host_rate',
+      'count', 'srv_count', 'serror_rate', 'srv_serror_rate',
+      'rerror_rate', 'srv_rerror_rate', 'same_srv_rate',
+      'diff_srv_rate', 'srv_diff_host_rate',
     ],
   },
   {
     title: 'Host-based statistics',
-    description: 'Destination-host counts, service rates, and error rates.',
+    description: 'Destination host statistics and error rates.',
     features: [
-      'dst_host_count',
-      'dst_host_srv_count',
-      'dst_host_same_srv_rate',
-      'dst_host_diff_srv_rate',
-      'dst_host_same_src_port_rate',
-      'dst_host_srv_diff_host_rate',
-      'dst_host_serror_rate',
-      'dst_host_srv_serror_rate',
-      'dst_host_rerror_rate',
-      'dst_host_srv_rerror_rate',
+      'dst_host_count', 'dst_host_srv_count',
+      'dst_host_same_srv_rate', 'dst_host_diff_srv_rate',
+      'dst_host_same_src_port_rate', 'dst_host_srv_diff_host_rate',
+      'dst_host_serror_rate', 'dst_host_srv_serror_rate',
+      'dst_host_rerror_rate', 'dst_host_srv_rerror_rate',
     ],
   },
 ] as const satisfies readonly {
@@ -145,114 +123,27 @@ const CATEGORICAL_OPTIONS = {
 type CategoricalFeatureName = keyof typeof CATEGORICAL_OPTIONS
 
 function isCategoricalFeature(
-  featureName: NetworkFeatureName,
-): featureName is CategoricalFeatureName {
+  name: NetworkFeatureName,
+): name is CategoricalFeatureName {
   return (
-    featureName === 'protocol_type' ||
-    featureName === 'service' ||
-    featureName === 'flag'
+    name === 'protocol_type' ||
+    name === 'service' ||
+    name === 'flag'
   )
 }
 
-function isValidCategoricalValue(
-  featureName: CategoricalFeatureName,
-  value: string,
-): boolean {
-  switch (featureName) {
-    case 'protocol_type':
-      return CATEGORICAL_OPTIONS.protocol_type.some(
-        (option) => option === value,
-      )
-    case 'service':
-      return CATEGORICAL_OPTIONS.service.some((option) => option === value)
-    case 'flag':
-      return CATEGORICAL_OPTIONS.flag.some((option) => option === value)
-  }
-}
-
 function createEmptyFeatureValues(): Record<NetworkFeatureName, string> {
-  return Object.fromEntries(FEATURE_NAMES.map((name) => [name, ''])) as Record<
-    NetworkFeatureName,
-    string
-  >
+  return Object.fromEntries(
+    FEATURE_NAMES.map((name) => [name, '']),
+  ) as Record<NetworkFeatureName, string>
 }
 
-function getApiErrorMessage(error: unknown, fallback: string): string {
-  if (axios.isAxiosError(error)) {
-    if (!error.response) {
-      return 'Unable to connect to CyberFusion. Check your connection and try again.'
-    }
+function formatLabel(name: string): string {
+  return name.replaceAll('_', ' ')
+}
 
-    const data: unknown = error.response.data
-    if (typeof data === 'object' && data !== null && 'detail' in data) {
-      const { detail } = data
-      if (typeof detail === 'string') return detail
-      if (typeof detail === 'object' && detail !== null) {
-        const detailMessage =
-          'message' in detail && typeof detail.message === 'string'
-            ? detail.message
-            : null
-        const missing =
-          'missing_features' in detail && Array.isArray(detail.missing_features)
-            ? detail.missing_features.filter(
-                (feature): feature is string => typeof feature === 'string',
-              )
-            : []
-        const unexpected =
-          'unexpected_features' in detail &&
-          Array.isArray(detail.unexpected_features)
-            ? detail.unexpected_features.filter(
-                (feature): feature is string => typeof feature === 'string',
-              )
-            : []
-        const details = [
-          detailMessage,
-          missing.length ? `Missing: ${missing.join(', ')}.` : null,
-          unexpected.length ? `Unexpected: ${unexpected.join(', ')}.` : null,
-        ].filter((message): message is string => message !== null)
-        if (details.length) return details.join(' ')
-      }
-
-      if (Array.isArray(detail)) {
-        const messages = detail
-          .map((item: unknown) => {
-            if (typeof item !== 'object' || item === null) return null
-
-            const message =
-              'msg' in item && typeof item.msg === 'string' ? item.msg : null
-            if (!message) return null
-
-            const location =
-              'loc' in item && Array.isArray(item.loc)
-                ? item.loc.filter(
-                    (part): part is string | number =>
-                      typeof part === 'string' || typeof part === 'number',
-                  )
-                : []
-            return location.length
-              ? `${location.slice(1).join('.') || location.join('.')}: ${message}`
-              : message
-          })
-          .filter((message): message is string => message !== null)
-        if (messages.length) return messages.join(' ')
-      }
-    }
-
-    if (error.response.status === 401) {
-      return 'Your session may have expired. Please sign in again.'
-    }
-    return fallback
-  }
-
-  if (
-    error instanceof Error &&
-    error.message ===
-      'Unable to connect. Please check your connection and try again.'
-  ) {
-    return 'Unable to connect to CyberFusion. Check your connection and try again.'
-  }
-
-  return fallback
+function formatProbability(value: number): string {
+  return `${(value * 100).toFixed(2)}%`
 }
 
 function getSeverityStyle(severity: string): string {
@@ -267,27 +158,71 @@ function getSeverityStyle(severity: string): string {
   }
 }
 
-function formatProbability(value: number): string {
-  return `${(value * 100).toFixed(2)}%`
-}
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) {
+      return 'Unable to connect to CyberFusion. Check your connection.'
+    }
 
-function formatFeatureLabel(featureName: NetworkFeatureName): string {
-  return featureName.replaceAll('_', ' ')
+    const data: unknown = error.response.data
+
+    if (typeof data === 'object' && data !== null && 'detail' in data) {
+      const detail = data.detail
+
+      if (typeof detail === 'string') return detail
+
+      if (
+        typeof detail === 'object' &&
+        detail !== null &&
+        'message' in detail &&
+        typeof detail.message === 'string'
+      ) {
+        return detail.message
+      }
+    }
+
+    if (error.response.status === 404) {
+      return 'API endpoint not found (404). Check the network intrusion CSV route.'
+    }
+
+    if (error.response.status === 401) {
+      return 'Your session may have expired. Please sign in again.'
+    }
+
+    if (error.response.status === 413) {
+      return 'The CSV file is too large.'
+    }
+  }
+
+  return error instanceof Error ? error.message : fallback
 }
 
 export default function NetworkIntrusion() {
   const [cases, setCases] = useState<Case[]>([])
   const [caseId, setCaseId] = useState('')
+
   const [featureValues, setFeatureValues] =
-    useState<Record<NetworkFeatureName, string>>(createEmptyFeatureValues)
-  const [invalidFeatures, setInvalidFeatures] = useState<NetworkFeatureName[]>(
-    [],
-  )
-  const [result, setResult] = useState<NetworkIntrusionResponse | null>(null)
-  const [casesError, setCasesError] = useState('')
+    useState<Record<NetworkFeatureName, string>>(
+      createEmptyFeatureValues,
+    )
+
+  const [invalidFeatures, setInvalidFeatures] =
+    useState<NetworkFeatureName[]>([])
+
+  const [result, setResult] =
+    useState<NetworkIntrusionResponse | null>(null)
+
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvResult, setCsvResult] =
+    useState<NetworkIntrusionBatchResponse | null>(null)
+
+  const [csvError, setCsvError] = useState('')
   const [analysisError, setAnalysisError] = useState('')
+  const [casesError, setCasesError] = useState('')
+
   const [isLoadingCases, setIsLoadingCases] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+
   const submissionLock = useRef(false)
 
   useEffect(() => {
@@ -296,6 +231,7 @@ export default function NetworkIntrusion() {
     getCases()
       .then((data) => {
         if (!active) return
+
         setCases(data)
         setCaseId(data[0] ? String(data[0].id) : '')
       })
@@ -316,97 +252,87 @@ export default function NetworkIntrusion() {
   }, [])
 
   function getValidatedFeatures(): NetworkIntrusionFeatures {
-    return {
-      duration: Number(featureValues.duration),
-      protocol_type: featureValues.protocol_type.trim(),
-      service: featureValues.service.trim(),
-      flag: featureValues.flag.trim(),
-      src_bytes: Number(featureValues.src_bytes),
-      dst_bytes: Number(featureValues.dst_bytes),
-      land: Number(featureValues.land),
-      wrong_fragment: Number(featureValues.wrong_fragment),
-      urgent: Number(featureValues.urgent),
-      hot: Number(featureValues.hot),
-      num_failed_logins: Number(featureValues.num_failed_logins),
-      logged_in: Number(featureValues.logged_in),
-      num_compromised: Number(featureValues.num_compromised),
-      root_shell: Number(featureValues.root_shell),
-      su_attempted: Number(featureValues.su_attempted),
-      num_root: Number(featureValues.num_root),
-      num_file_creations: Number(featureValues.num_file_creations),
-      num_shells: Number(featureValues.num_shells),
-      num_access_files: Number(featureValues.num_access_files),
-      num_outbound_cmds: Number(featureValues.num_outbound_cmds),
-      is_host_login: Number(featureValues.is_host_login),
-      is_guest_login: Number(featureValues.is_guest_login),
-      count: Number(featureValues.count),
-      srv_count: Number(featureValues.srv_count),
-      serror_rate: Number(featureValues.serror_rate),
-      srv_serror_rate: Number(featureValues.srv_serror_rate),
-      rerror_rate: Number(featureValues.rerror_rate),
-      srv_rerror_rate: Number(featureValues.srv_rerror_rate),
-      same_srv_rate: Number(featureValues.same_srv_rate),
-      diff_srv_rate: Number(featureValues.diff_srv_rate),
-      srv_diff_host_rate: Number(featureValues.srv_diff_host_rate),
-      dst_host_count: Number(featureValues.dst_host_count),
-      dst_host_srv_count: Number(featureValues.dst_host_srv_count),
-      dst_host_same_srv_rate: Number(featureValues.dst_host_same_srv_rate),
-      dst_host_diff_srv_rate: Number(featureValues.dst_host_diff_srv_rate),
-      dst_host_same_src_port_rate: Number(
-        featureValues.dst_host_same_src_port_rate,
-      ),
-      dst_host_srv_diff_host_rate: Number(
-        featureValues.dst_host_srv_diff_host_rate,
-      ),
-      dst_host_serror_rate: Number(featureValues.dst_host_serror_rate),
-      dst_host_srv_serror_rate: Number(featureValues.dst_host_srv_serror_rate),
-      dst_host_rerror_rate: Number(featureValues.dst_host_rerror_rate),
-      dst_host_srv_rerror_rate: Number(
-        featureValues.dst_host_srv_rerror_rate,
-      ),
+    const features = {} as NetworkIntrusionFeatures
+
+    for (const name of FEATURE_NAMES) {
+      const value = featureValues[name].trim()
+
+      if (isCategoricalFeature(name)) {
+        Object.assign(features, { [name]: value })
+      } else {
+        Object.assign(features, { [name]: Number(value) })
+      }
     }
+
+    return features
+  }
+
+  function updateFeature(name: NetworkFeatureName, value: string) {
+    setFeatureValues((current) => ({
+      ...current,
+      [name]: value,
+    }))
+
+    setInvalidFeatures((current) =>
+      current.filter((item) => item !== name),
+    )
+
+    setResult(null)
+    setAnalysisError('')
+  }
+
+  function resetManualForm() {
+    setFeatureValues(createEmptyFeatureValues())
+    setInvalidFeatures([])
+    setResult(null)
+    setAnalysisError('')
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
     if (submissionLock.current) return
 
     setAnalysisError('')
     setResult(null)
+
     if (!caseId) {
-      setAnalysisError('Select a case before analyzing network traffic.')
+      setAnalysisError('Select an investigation case first.')
       return
     }
 
-    const invalid = FEATURE_NAMES.filter((featureName) => {
-      const value = featureValues[featureName].trim()
-      if (isCategoricalFeature(featureName)) {
-        return value === '' || !isValidCategoricalValue(featureName, value)
+    const invalid = FEATURE_NAMES.filter((name) => {
+      const value = featureValues[name].trim()
+
+      if (isCategoricalFeature(name)) {
+        return !CATEGORICAL_OPTIONS[name].some(
+          (option) => option === value,
+        )
       }
-      return value === '' || !Number.isFinite(Number(value))
+
+      return !value || !Number.isFinite(Number(value))
     })
+
     setInvalidFeatures(invalid)
-    if (invalid.length) {
-      setAnalysisError(
-        'Complete every feature with an allowed category or finite number before analysis.',
-      )
+
+    if (invalid.length > 0) {
+      setAnalysisError('Complete all 41 features before analysis.')
       return
     }
 
     submissionLock.current = true
     setIsAnalyzing(true)
+
     try {
-      const analysis = await analyzeNetworkIntrusion(
+      const response = await analyzeNetworkIntrusion(
         Number(caseId),
         getValidatedFeatures(),
       )
-      setResult(analysis)
+
+      setResult(response)
     } catch (error) {
       setAnalysisError(
-        getApiErrorMessage(
-          error,
-          'Network traffic could not be analyzed. Please try again.',
-        ),
+        getApiErrorMessage(error, 'Network traffic analysis failed.'),
       )
     } finally {
       submissionLock.current = false
@@ -414,30 +340,74 @@ export default function NetworkIntrusion() {
     }
   }
 
-  function updateFeature(featureName: NetworkFeatureName, value: string) {
-    setFeatureValues((current) => ({ ...current, [featureName]: value }))
-    setInvalidFeatures((current) =>
-      current.filter((invalidFeature) => invalidFeature !== featureName),
-    )
-    setResult(null)
-    setAnalysisError('')
+  function handleFileChange(file: File | null) {
+    setCsvFile(file)
+    setCsvResult(null)
+    setCsvError('')
+
+    if (!file) return
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setCsvFile(null)
+      setCsvError('Only CSV files are supported.')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setCsvFile(null)
+      setCsvError('CSV file size must be 5 MB or less.')
+    }
   }
 
-  function resetAnalysis() {
-    setFeatureValues(createEmptyFeatureValues())
-    setInvalidFeatures([])
-    setResult(null)
-    setAnalysisError('')
+  async function handleCsvSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (submissionLock.current) return
+
+    setCsvError('')
+    setCsvResult(null)
+
+    if (!caseId) {
+      setCsvError('Select an investigation case first.')
+      return
+    }
+
+    if (!csvFile) {
+      setCsvError('Please select a CSV file.')
+      return
+    }
+
+    submissionLock.current = true
+    setIsAnalyzing(true)
+
+    try {
+      // Send the complete CSV file to the backend batch endpoint.
+      // The backend processes all rows and saves one combined finding.
+      const response = await analyzeNetworkIntrusionCsv(
+        Number(caseId),
+        csvFile,
+      )
+
+      setCsvResult(response)
+    } catch (error) {
+      setCsvError(
+        getApiErrorMessage(error, 'CSV analysis could not be completed.'),
+      )
+    } finally {
+      submissionLock.current = false
+      setIsAnalyzing(false)
+    }
   }
 
   function retryCases() {
     setIsLoadingCases(true)
     setCasesError('')
+
     getCases()
       .then((data) => {
         setCases(data)
         setCaseId((current) =>
-          data.some((caseItem) => String(caseItem.id) === current)
+          data.some((item) => String(item.id) === current)
             ? current
             : data[0]
               ? String(data[0].id)
@@ -452,39 +422,38 @@ export default function NetworkIntrusion() {
       .finally(() => setIsLoadingCases(false))
   }
 
-  function renderFeature(featureName: NetworkFeatureName) {
-    const inputId = `network-feature-${featureName}`
-    const hasError = invalidFeatures.includes(featureName)
+  function renderFeature(name: NetworkFeatureName) {
+    const invalid = invalidFeatures.includes(name)
+    const inputId = `network-feature-${name}`
 
     return (
-      <div key={featureName} className="space-y-1.5">
+      <div key={name} className="space-y-1.5">
         <label
           htmlFor={inputId}
           className="block text-xs font-medium capitalize text-slate-300"
         >
-          {formatFeatureLabel(featureName)}
-          <span className="ml-1 text-red-300" aria-hidden="true">
-            *
-          </span>
+          {formatLabel(name)}
+          <span className="ml-1 text-red-300">*</span>
         </label>
-        {isCategoricalFeature(featureName) ? (
+
+        {isCategoricalFeature(name) ? (
           <select
             id={inputId}
-            value={featureValues[featureName]}
+            value={featureValues[name]}
             onChange={(event) =>
-              updateFeature(featureName, event.target.value)
+              updateFeature(name, event.target.value)
             }
             required
             disabled={isAnalyzing}
-            aria-invalid={hasError}
-            className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:ring-4 disabled:opacity-60 ${
-              hasError
-                ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/10'
-                : 'border-white/10 hover:border-white/20 focus:border-blue-500 focus:ring-blue-500/10'
+            aria-invalid={invalid}
+            className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none focus:ring-4 disabled:opacity-60 ${
+              invalid
+                ? 'border-red-400/50 focus:ring-red-400/10'
+                : 'border-white/10 focus:border-blue-500 focus:ring-blue-500/10'
             }`}
           >
-            <option value="">Select {formatFeatureLabel(featureName)}</option>
-            {CATEGORICAL_OPTIONS[featureName].map((option) => (
+            <option value="">Select {formatLabel(name)}</option>
+            {CATEGORICAL_OPTIONS[name].map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -496,38 +465,44 @@ export default function NetworkIntrusion() {
             type="number"
             step="any"
             inputMode="decimal"
-            value={featureValues[featureName]}
+            value={featureValues[name]}
             onChange={(event) =>
-              updateFeature(featureName, event.target.value)
+              updateFeature(name, event.target.value)
             }
             required
             disabled={isAnalyzing}
-            aria-invalid={hasError}
-            className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:ring-4 disabled:opacity-60 ${
-              hasError
-                ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/10'
-                : 'border-white/10 hover:border-white/20 focus:border-blue-500 focus:ring-blue-500/10'
+            aria-invalid={invalid}
+            placeholder="Enter number"
+            className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none focus:ring-4 disabled:opacity-60 ${
+              invalid
+                ? 'border-red-400/50 focus:ring-red-400/10'
+                : 'border-white/10 focus:border-blue-500 focus:ring-blue-500/10'
             }`}
-            placeholder="Enter finite number"
           />
         )}
-        {hasError && (
-          <p className="text-[11px] text-red-300">
-            {isCategoricalFeature(featureName)
-              ? 'Select a confirmed category.'
-              : 'Enter a finite number.'}
+
+        {invalid && (
+          <p className="text-xs text-red-300">
+            Invalid or missing value.
           </p>
         )}
       </div>
     )
   }
 
-  const selectedCase = cases.find((caseItem) => String(caseItem.id) === caseId)
-  const completedFeatures = FEATURE_NAMES.filter((featureName) => {
-    const value = featureValues[featureName].trim()
-    if (isCategoricalFeature(featureName)) {
-      return isValidCategoricalValue(featureName, value)
+  const selectedCase = cases.find(
+    (item) => String(item.id) === caseId,
+  )
+
+  const completedFeatures = FEATURE_NAMES.filter((name) => {
+    const value = featureValues[name].trim()
+
+    if (isCategoricalFeature(name)) {
+      return CATEGORICAL_OPTIONS[name].some(
+        (option) => option === value,
+      )
     }
+
     return value !== '' && Number.isFinite(Number(value))
   }).length
 
@@ -537,222 +512,397 @@ export default function NetworkIntrusion() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
           AI Analysis
         </p>
+
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           Network Intrusion Detection
         </h1>
+
         <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
-          Analyze KDD Cup 99 network-traffic features and save the model
-          assessment to an investigation case.
+          Analyze KDD Cup 99 network traffic and save model assessments to an investigation case.
         </p>
       </header>
 
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300 sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="flex items-center gap-2 text-sm text-red-300">
-            <AlertCircle size={17} aria-hidden="true" />
-            {casesError}
-          </p>
+          <span>{casesError}</span>
           <button
             type="button"
             onClick={retryCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 sm:self-auto"
+            className="self-start underline"
           >
             Retry
           </button>
         </div>
       )}
 
-      {analysisError && (
-        <p
-          role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+      {/* Shared case selection */}
+      <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+        <label
+          htmlFor="network-intrusion-case"
+          className="mb-2 block text-sm font-medium text-slate-200"
         >
-          <AlertCircle
-            size={17}
-            className="mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
-          <span>{analysisError}</span>
-        </p>
-      )}
+          Investigation case
+        </label>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+        <select
+          id="network-intrusion-case"
+          value={caseId}
+          onChange={(event) => {
+            setCaseId(event.target.value)
+            setResult(null)
+            setCsvResult(null)
+            setAnalysisError('')
+            setCsvError('')
+          }}
+          disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
+          className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-60"
+        >
+          {cases.length === 0 && (
+            <option value="">
+              {isLoadingCases ? 'Loading cases…' : 'No cases available'}
+            </option>
+          )}
+
+          {cases.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.case_number} — {item.title}
+            </option>
+          ))}
+        </select>
+
+        {selectedCase && (
+          <p className="mt-2 text-xs text-slate-500">
+            Findings will be saved to {selectedCase.case_number}.
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        {/* Manual analysis */}
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+          className="space-y-5 rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6"
         >
-          <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
-              <Network size={21} aria-hidden="true" />
-            </span>
+          <div className="flex items-center gap-3">
+            <Network size={22} className="text-blue-300" />
             <div>
-              <h2 className="text-base font-semibold text-white">
-                Network traffic features
+              <h2 className="font-semibold text-white">
+                Manual analysis
               </h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                Complete all 41 fields. Numeric fields must be finite values;
-                categorical fields must use a listed option.
+              <p className="text-xs text-slate-400">
+                Enter all 41 network traffic features.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 space-y-5">
-            <div className="space-y-2">
-              <label
-                htmlFor="network-intrusion-case"
-                className="block text-sm font-medium text-slate-200"
-              >
-                Investigation case
-              </label>
-              <select
-                id="network-intrusion-case"
-                value={caseId}
-                onChange={(event) => {
-                  setCaseId(event.target.value)
-                  setResult(null)
-                  setAnalysisError('')
-                }}
-                disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
-                required
-                className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
-              >
-                {cases.length === 0 && (
-                  <option value="">
-                    {isLoadingCases ? 'Loading cases…' : 'No cases available'}
-                  </option>
-                )}
-                {cases.map((caseItem) => (
-                  <option key={caseItem.id} value={caseItem.id}>
-                    {caseItem.case_number} — {caseItem.title}
-                  </option>
-                ))}
-              </select>
-              {selectedCase && (
-                <p className="text-xs text-slate-500">
-                  Successful analysis is saved to this case automatically.
-                </p>
-              )}
-            </div>
+          {analysisError && (
+            <p
+              role="alert"
+              className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300"
+            >
+              {analysisError}
+            </p>
+          )}
 
-            <div className="grid gap-4 2xl:grid-cols-2">
-              {FEATURE_GROUPS.map((group) => (
-                <fieldset
-                  key={group.title}
-                  className="min-w-0 space-y-4 rounded-xl border border-white/[0.07] bg-[#292b2e] p-4 sm:p-5"
-                >
-                  <legend className="px-2 text-sm font-semibold text-slate-100">
-                    {group.title}
-                  </legend>
-                  <p className="-mt-1 text-xs leading-relaxed text-slate-500">
-                    {group.description}
-                  </p>
-                  <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
-                    {group.features.map(renderFeature)}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
+          <div className="max-h-[650px] space-y-5 overflow-y-auto pr-2">
+            {FEATURE_GROUPS.map((group) => (
+              <fieldset
+                key={group.title}
+                className="min-w-0 space-y-4 rounded-xl border border-white/[0.07] bg-[#292b2e] p-4 sm:p-5"
+              >
+                <legend className="px-2 text-sm font-semibold text-slate-100">
+                  {group.title}
+                </legend>
+
+                <p className="-mt-1 text-xs text-slate-500">
+                  {group.description}
+                </p>
+
+                <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+                  {group.features.map(renderFeature)}
+                </div>
+              </fieldset>
+            ))}
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-slate-500">
               {completedFeatures} of 41 features completed
             </p>
+
             <div className="flex flex-col-reverse gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={resetAnalysis}
+                onClick={resetManualForm}
                 disabled={isAnalyzing}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300 disabled:opacity-50"
               >
-                <RotateCcw size={15} aria-hidden="true" />
+                <RotateCcw size={15} />
                 Reset
               </button>
+
               <button
                 type="submit"
                 disabled={
                   isAnalyzing ||
                   isLoadingCases ||
                   !caseId ||
-                  completedFeatures !== FEATURE_NAMES.length
+                  completedFeatures !== 41
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isAnalyzing ? (
-                  <LoaderCircle
-                    size={16}
-                    className="animate-spin"
-                    aria-hidden="true"
-                  />
+                  <LoaderCircle size={16} className="animate-spin" />
                 ) : (
-                  <ScanSearch size={16} aria-hidden="true" />
+                  <ScanSearch size={16} />
                 )}
-                {isAnalyzing ? 'Analyzing traffic…' : 'Analyze network traffic'}
+
+                {isAnalyzing ? 'Analyzing…' : 'Analyze traffic'}
               </button>
             </div>
           </div>
         </form>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.055] p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <Activity
-                size={19}
-                className="mt-0.5 shrink-0 text-blue-300"
-                aria-hidden="true"
-              />
-              <div>
-                <h2 className="text-sm font-semibold text-blue-100">
-                  KDD Cup 99 assessment
-                </h2>
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                  The model uses a KDD Cup 99 network-traffic feature set.
-                  Results are AI-assisted decision support, not proof that an
-                  actual intrusion occurred. Performance on real-world traffic
-                  may differ.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
-            <div className="flex items-center gap-2">
-              <BadgeCheck
-                size={17}
-                className="text-emerald-300"
-                aria-hidden="true"
-              />
-              <h2 className="text-sm font-semibold text-white">
-                Automatically saved finding
+        {/* CSV batch analysis */}
+        <div className="space-y-5 rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+          <div className="flex items-center gap-3">
+            <FileSpreadsheet size={22} className="text-emerald-300" />
+            <div>
+              <h2 className="font-semibold text-white">
+                CSV batch analysis
               </h2>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
-              Successful case-linked analysis is automatically saved to the
-              selected case and returns a finding ID.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-amber-400/15 bg-amber-400/[0.045] p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <ShieldAlert
-                size={18}
-                className="mt-0.5 shrink-0 text-amber-300"
-                aria-hidden="true"
-              />
-              <p className="text-xs leading-relaxed text-slate-400">
-                Enter authorized, appropriately transformed traffic features
-                only. Do not enter network passwords or other sensitive
-                credentials.
+              <p className="text-xs text-slate-400">
+                Analyze multiple network connections in one request.
               </p>
             </div>
           </div>
-        </aside>
+
+          <div className="rounded-xl border border-blue-400/15 bg-blue-500/[0.05] p-4">
+            <p className="text-sm font-medium text-blue-200">
+              CSV requirements
+            </p>
+
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-400">
+              <li>One CSV file, maximum 5 MB.</li>
+              <li>All 41 KDD Cup 99 feature columns are required.</li>
+              <li>An optional class column is ignored by the model.</li>
+              <li>The backend processes the complete CSV in one request.</li>
+              <li>One combined finding is saved to the selected case.</li>
+            </ul>
+          </div>
+
+          <form onSubmit={handleCsvSubmit} className="space-y-4">
+            <label
+              htmlFor="network-csv-file"
+              className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/15 bg-[#242629] p-6 text-center transition hover:border-blue-400/50"
+            >
+              <Upload size={30} className="mb-3 text-blue-300" />
+
+              <span className="text-sm font-medium text-slate-200">
+                Choose one CSV file
+              </span>
+
+              <span className="mt-1 text-xs text-slate-500">
+                CSV format · Maximum 5 MB
+              </span>
+
+              {csvFile && (
+                <span className="mt-3 break-all text-xs text-emerald-300">
+                  {csvFile.name}
+                </span>
+              )}
+
+              <input
+                id="network-csv-file"
+                type="file"
+                accept=".csv,text/csv"
+                disabled={isAnalyzing}
+                className="sr-only"
+                onChange={(event) =>
+                  handleFileChange(event.target.files?.[0] ?? null)
+                }
+              />
+            </label>
+
+            {csvError && (
+              <p
+                role="alert"
+                className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300"
+              >
+                <AlertCircle size={15} className="mr-2 inline" />
+                {csvError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={
+                isAnalyzing ||
+                !csvFile ||
+                !caseId ||
+                isLoadingCases
+              }
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isAnalyzing ? (
+                <LoaderCircle size={17} className="animate-spin" />
+              ) : (
+                <Upload size={17} />
+              )}
+
+              {isAnalyzing ? 'Processing CSV…' : 'Analyze CSV file'}
+            </button>
+          </form>
+
+          {/* Batch response */}
+          {csvResult && (
+            <div className="space-y-4 border-t border-white/[0.07] pt-5">
+              <div>
+                <h3 className="font-semibold text-white">
+                  CSV analysis summary
+                </h3>
+                <p className="mt-1 break-all text-xs text-slate-400">
+                  {csvResult.filename}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
+                  <p className="text-xs text-slate-400">
+                    Total connections
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-white">
+                    {csvResult.total_connections}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-red-400/15 bg-red-400/[0.06] p-4">
+                  <p className="text-xs text-red-300">
+                    Attack connections
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-white">
+                    {csvResult.attack_connections}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] p-4">
+                  <p className="text-xs text-emerald-300">
+                    Normal connections
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-white">
+                    {csvResult.normal_connections}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-amber-400/15 bg-amber-400/[0.06] p-4">
+                  <p className="text-xs text-amber-300">
+                    Attack percentage
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-white">
+                    {csvResult.attack_percentage.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-3">
+                  <p className="text-xs text-slate-500">Model</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {csvResult.model}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-3">
+                  <p className="text-xs text-slate-500">Threshold</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {formatProbability(csvResult.threshold)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-3 sm:col-span-2">
+                  <p className="text-xs text-slate-500">Dataset</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {csvResult.dataset}
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-white/[0.07]">
+                <table className="w-full min-w-[480px] text-left text-xs">
+                  <thead className="bg-[#242629] text-slate-400">
+                    <tr>
+                      <th className="px-3 py-3">Connection</th>
+                      <th className="px-3 py-3">Prediction</th>
+                      <th className="px-3 py-3">Attack probability</th>
+                      <th className="px-3 py-3">Normal probability</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {csvResult.results.map((item) => (
+                      <tr
+                        key={item.connection_index}
+                        className="border-t border-white/[0.06] text-slate-300"
+                      >
+                        <td className="px-3 py-3">
+                          {item.connection_index}
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <span
+                            className={`rounded-full border px-2 py-1 ${
+                              item.class === 1
+                                ? 'border-red-400/20 bg-red-400/10 text-red-300'
+                                : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                            }`}
+                          >
+                            {item.prediction}
+                          </span>
+                        </td>
+
+                        <td className="px-3 py-3">
+                          {formatProbability(item.attack_probability)}
+                        </td>
+
+                        <td className="px-3 py-3">
+                          {formatProbability(item.normal_probability)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4">
+                <div className="flex items-start gap-2">
+                  <BadgeCheck
+                    size={16}
+                    className="mt-0.5 shrink-0 text-emerald-300"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-200">
+                      Combined finding saved successfully
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {csvResult.message}
+                    </p>
+                  </div>
+                </div>
+
+                <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+                  Finding #{csvResult.finding_id}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Manual analysis result */}
       {result && (
         <section
           aria-live="polite"
@@ -767,6 +917,7 @@ export default function NetworkIntrusion() {
                 {result.module}
               </h2>
             </div>
+
             <span
               className={`inline-flex self-start rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${getSeverityStyle(result.severity)}`}
             >
@@ -775,63 +926,31 @@ export default function NetworkIntrusion() {
           </div>
 
           <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Prediction
-              </p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {result.prediction}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Classification: {result.class}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Confidence
-              </p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {formatProbability(result.confidence)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Attack probability
-              </p>
-              <p className="mt-2 text-lg font-semibold text-red-200">
-                {formatProbability(result.attack_probability)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Normal probability
-              </p>
-              <p className="mt-2 text-lg font-semibold text-emerald-200">
-                {formatProbability(result.normal_probability)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Decision threshold
-              </p>
-              <p className="mt-2 text-lg font-semibold text-slate-100">
-                {formatProbability(result.threshold)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Model
-              </p>
-              <p className="mt-2 text-sm font-medium text-slate-100">
-                {result.model}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {result.dataset} · {result.input_features} features
-              </p>
-            </div>
+            {[
+              ['Prediction', result.prediction],
+              ['Classification', String(result.class)],
+              ['Confidence', formatProbability(result.confidence)],
+              ['Attack probability', formatProbability(result.attack_probability)],
+              ['Normal probability', formatProbability(result.normal_probability)],
+              ['Decision threshold', formatProbability(result.threshold)],
+              ['Model', result.model],
+              ['Dataset', result.dataset],
+              ['Input features', String(result.input_features)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-white/[0.07] bg-[#242629] p-4"
+              >
+                <p className="text-xs text-slate-500">{label}</p>
+                <p className="mt-2 break-words text-sm font-semibold text-white">
+                  {value}
+                </p>
+              </div>
+            ))}
+
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2 lg:col-span-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300/70">
                   Finding saved to case #{result.case_id}
                   {selectedCase ? ` · ${selectedCase.case_number}` : ''}
                 </p>
@@ -839,6 +958,7 @@ export default function NetworkIntrusion() {
                   {result.message}
                 </p>
               </div>
+
               <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
                 Finding #{result.finding_id}
               </span>
@@ -846,6 +966,18 @@ export default function NetworkIntrusion() {
           </div>
         </section>
       )}
+
+      <aside className="flex items-start gap-3 rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4">
+        <ShieldAlert
+          size={18}
+          className="mt-0.5 shrink-0 text-amber-300"
+        />
+        <p className="text-xs leading-relaxed text-slate-400">
+          Predictions are AI-assisted decision support, not proof that an
+          intrusion occurred. This model uses the KDD Cup 99 feature set.
+          Real-world performance may differ.
+        </p>
+      </aside>
     </section>
   )
 }
