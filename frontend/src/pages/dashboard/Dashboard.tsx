@@ -745,13 +745,13 @@ export default function Dashboard() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
-            Investigator workspace
+            AI Cybersecurity and Digital Forensics Platform
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-            Dashboard
+             CyberFusion
           </h1>
           <p className="mt-1.5 text-sm text-slate-400">
-            Overview of your cases, evidence, and AI findings.
+            Unified AI-powered cybersecurity, investigation, and digital forensics workspace.
           </p>
         </div>
         {analytics && (
