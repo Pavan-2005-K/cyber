@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Bot,
@@ -93,6 +92,7 @@ function getChatError(error: unknown): {
 
   if (status === 502) {
     const normalizedDetail = detail?.toLowerCase() ?? ''
+
     const isConfigurationError =
       normalizedDetail.includes('configured gemini model') ||
       normalizedDetail.includes('request configuration')
@@ -107,6 +107,7 @@ function getChatError(error: unknown): {
 
   if (status === 503) {
     const normalizedDetail = detail?.toLowerCase() ?? ''
+
     const isConfigurationError =
       normalizedDetail.includes('not configured') ||
       normalizedDetail.includes('credential') ||
@@ -158,6 +159,7 @@ export default function CyberFusionChatbot() {
         { role: 'user', content: message },
       ])
     }
+
     setRetryRequest(null)
     setIsLoading(true)
 
@@ -173,10 +175,16 @@ export default function CyberFusionChatbot() {
       ])
     } catch (error: unknown) {
       const chatError = getChatError(error)
+
       setMessages((previous) => [
         ...previous,
-        { role: 'assistant', content: chatError.message, isError: true },
+        {
+          role: 'assistant',
+          content: chatError.message,
+          isError: true,
+        },
       ])
+
       if (chatError.retryable) {
         setRetryRequest({ message, history })
       }
@@ -193,6 +201,7 @@ export default function CyberFusionChatbot() {
     if (!message || isLoading) return
 
     const history = messages.filter((item) => !item.isError).slice(-10)
+
     setInput('')
     void sendMessage(message, history, true)
   }
@@ -203,6 +212,7 @@ export default function CyberFusionChatbot() {
     setMessages((previous) =>
       previous.at(-1)?.isError ? previous.slice(0, -1) : previous,
     )
+
     void sendMessage(retryRequest.message, retryRequest.history, false)
   }
 
@@ -218,17 +228,18 @@ export default function CyberFusionChatbot() {
           className="cyber-chat-panel"
           aria-label="CyberFusion AI Assistant"
         >
+          {/* Header */}
           <header className="cyber-chat-header">
             <div className="cyber-chat-brand">
               <div className="cyber-chat-avatar">
-                <Bot size={22} />
+                <Bot size={21} aria-hidden="true" />
               </div>
 
               <div>
                 <h2>CyberFusion AI</h2>
                 <p>
                   <span className="cyber-online-dot" />
-                  Cybersecurity Assistant
+                  AI Assistant
                 </p>
               </div>
             </div>
@@ -240,7 +251,7 @@ export default function CyberFusionChatbot() {
                 title="Clear conversation"
                 aria-label="Clear conversation"
               >
-                <Trash2 size={17} />
+                <Trash2 size={16} aria-hidden="true" />
               </button>
 
               <button
@@ -249,11 +260,12 @@ export default function CyberFusionChatbot() {
                 title="Close chatbot"
                 aria-label="Close chatbot"
               >
-                <X size={20} />
+                <X size={19} aria-hidden="true" />
               </button>
             </div>
           </header>
 
+          {/* Messages */}
           <div className="cyber-chat-messages">
             {messages.map((message, index) => (
               <div
@@ -264,7 +276,7 @@ export default function CyberFusionChatbot() {
               >
                 {message.role === 'assistant' && (
                   <div className="cyber-message-avatar">
-                    <Bot size={16} />
+                    <Bot size={15} aria-hidden="true" />
                   </div>
                 )}
 
@@ -276,6 +288,7 @@ export default function CyberFusionChatbot() {
                   }`}
                 >
                   {message.content}
+
                   {message.isError &&
                     index === messages.length - 1 &&
                     retryRequest && (
@@ -283,9 +296,9 @@ export default function CyberFusionChatbot() {
                         type="button"
                         onClick={handleRetry}
                         disabled={isLoading}
-                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 transition hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="cyber-retry-button"
                       >
-                        <RotateCw size={14} aria-hidden="true" />
+                        <RotateCw size={13} aria-hidden="true" />
                         Retry
                       </button>
                     )}
@@ -293,29 +306,29 @@ export default function CyberFusionChatbot() {
               </div>
             ))}
 
+            {/* Suggested prompts */}
             {messages.length === 1 && (
               <div className="cyber-suggestions">
-                <p>Try asking:</p>
+                <p>Quick prompts</p>
 
                 {SUGGESTIONS.map((suggestion) => (
                   <button
                     type="button"
                     key={suggestion}
-                    onClick={() => {
-                      setInput(suggestion)
-                    }}
+                    onClick={() => setInput(suggestion)}
                   >
-                    <Sparkles size={13} />
+                    <Sparkles size={12} aria-hidden="true" />
                     {suggestion}
                   </button>
                 ))}
               </div>
             )}
 
+            {/* Typing indicator */}
             {isLoading && (
               <div className="cyber-message-row">
                 <div className="cyber-message-avatar">
-                  <Bot size={16} />
+                  <Bot size={15} aria-hidden="true" />
                 </div>
 
                 <div className="cyber-message cyber-ai-message cyber-typing">
@@ -329,14 +342,16 @@ export default function CyberFusionChatbot() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Input */}
           <form className="cyber-chat-input-area" onSubmit={handleSend}>
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask a cybersecurity question..."
+              placeholder="Ask something..."
               rows={1}
               maxLength={2000}
               disabled={isLoading}
+              aria-label="Type your message"
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault()
@@ -349,17 +364,19 @@ export default function CyberFusionChatbot() {
               type="submit"
               disabled={!input.trim() || isLoading}
               aria-label="Send message"
+              title="Send message"
             >
-              <Send size={18} />
+              <Send size={16} aria-hidden="true" />
             </button>
           </form>
 
           <p className="cyber-chat-footer">
-            AI-generated responses may contain inaccuracies.
+            AI responses may contain inaccuracies.
           </p>
         </section>
       )}
 
+      {/* Launcher */}
       <button
         type="button"
         className="cyber-chat-launcher"
@@ -367,8 +384,11 @@ export default function CyberFusionChatbot() {
         aria-label={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
         title="Chat with CyberFusion AI"
       >
-        {isOpen ? <X size={25} /> : <MessageCircle size={25} />}
-        {!isOpen && <span className="cyber-chat-launcher-label">AI Assistant</span>}
+        {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
+
+        {!isOpen && (
+          <span className="cyber-chat-launcher-label">AI Assistant</span>
+        )}
       </button>
     </div>
   )

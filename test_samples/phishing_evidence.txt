@@ -1,0 +1,27 @@
+CYBERFUSION - DIGITAL FORENSICS TEST EVIDENCE
+
+Evidence Type: Suspicious Phishing Email
+Case ID: CF-89E6DEC119
+
+From: security-alert@example-test.com
+To: rajath@example-test.com
+Subject: Urgent Account Verification Required
+
+Message:
+
+Dear User,
+
+Your account requires immediate verification.
+Please review the suspicious link below:
+
+http://example.com/test-phishing
+
+Failure to verify may result in account suspension.
+
+Regards,
+Security Support Team
+
+NOTE:
+This is fictional test evidence created for
+CyberFusion application testing.
+No real credentials or personal information.

@@ -74,38 +74,65 @@ const FEATURE_GROUPS = [
     title: 'Basic connection details',
     description: 'Protocol, service, connection status and data transfer.',
     features: [
-      'duration', 'protocol_type', 'service', 'flag', 'src_bytes',
-      'dst_bytes', 'land', 'wrong_fragment', 'urgent',
+      'duration',
+      'protocol_type',
+      'service',
+      'flag',
+      'src_bytes',
+      'dst_bytes',
+      'land',
+      'wrong_fragment',
+      'urgent',
     ],
   },
   {
     title: 'Content and login features',
     description: 'Login, shell and access indicators.',
     features: [
-      'hot', 'num_failed_logins', 'logged_in', 'num_compromised',
-      'root_shell', 'su_attempted', 'num_root', 'num_file_creations',
-      'num_shells', 'num_access_files', 'num_outbound_cmds',
-      'is_host_login', 'is_guest_login',
+      'hot',
+      'num_failed_logins',
+      'logged_in',
+      'num_compromised',
+      'root_shell',
+      'su_attempted',
+      'num_root',
+      'num_file_creations',
+      'num_shells',
+      'num_access_files',
+      'num_outbound_cmds',
+      'is_host_login',
+      'is_guest_login',
     ],
   },
   {
     title: 'Traffic statistics',
     description: 'Connection counts and service/error rates.',
     features: [
-      'count', 'srv_count', 'serror_rate', 'srv_serror_rate',
-      'rerror_rate', 'srv_rerror_rate', 'same_srv_rate',
-      'diff_srv_rate', 'srv_diff_host_rate',
+      'count',
+      'srv_count',
+      'serror_rate',
+      'srv_serror_rate',
+      'rerror_rate',
+      'srv_rerror_rate',
+      'same_srv_rate',
+      'diff_srv_rate',
+      'srv_diff_host_rate',
     ],
   },
   {
     title: 'Host-based statistics',
     description: 'Destination host statistics and error rates.',
     features: [
-      'dst_host_count', 'dst_host_srv_count',
-      'dst_host_same_srv_rate', 'dst_host_diff_srv_rate',
-      'dst_host_same_src_port_rate', 'dst_host_srv_diff_host_rate',
-      'dst_host_serror_rate', 'dst_host_srv_serror_rate',
-      'dst_host_rerror_rate', 'dst_host_srv_rerror_rate',
+      'dst_host_count',
+      'dst_host_srv_count',
+      'dst_host_same_srv_rate',
+      'dst_host_diff_srv_rate',
+      'dst_host_same_src_port_rate',
+      'dst_host_srv_diff_host_rate',
+      'dst_host_serror_rate',
+      'dst_host_srv_serror_rate',
+      'dst_host_rerror_rate',
+      'dst_host_srv_rerror_rate',
     ],
   },
 ] as const satisfies readonly {
@@ -150,11 +177,11 @@ function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
-      return 'border-red-400/20 bg-red-400/10 text-red-300'
+      return 'border-red-400/30 bg-red-500/10 text-red-700 dark:text-red-300'
     case 'MEDIUM':
-      return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+      return 'border-amber-400/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
     default:
-      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+      return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
   }
 }
 
@@ -381,8 +408,6 @@ export default function NetworkIntrusion() {
     setIsAnalyzing(true)
 
     try {
-      // Send the complete CSV file to the backend batch endpoint.
-      // The backend processes all rows and saves one combined finding.
       const response = await analyzeNetworkIntrusionCsv(
         Number(caseId),
         csvFile,
@@ -430,10 +455,10 @@ export default function NetworkIntrusion() {
       <div key={name} className="space-y-1.5">
         <label
           htmlFor={inputId}
-          className="block text-xs font-medium capitalize text-slate-300"
+          className="block text-xs font-medium capitalize theme-text-secondary"
         >
           {formatLabel(name)}
-          <span className="ml-1 text-red-300">*</span>
+          <span className="ml-1 text-red-600 dark:text-red-400">*</span>
         </label>
 
         {isCategoricalFeature(name) ? (
@@ -446,13 +471,14 @@ export default function NetworkIntrusion() {
             required
             disabled={isAnalyzing}
             aria-invalid={invalid}
-            className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none focus:ring-4 disabled:opacity-60 ${
+            className={`theme-input w-full rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-4 disabled:opacity-60 ${
               invalid
-                ? 'border-red-400/50 focus:ring-red-400/10'
-                : 'border-white/10 focus:border-blue-500 focus:ring-blue-500/10'
+                ? 'border-red-400/60 focus:ring-red-400/10'
+                : 'focus:border-purple-500 focus:ring-purple-500/10'
             }`}
           >
             <option value="">Select {formatLabel(name)}</option>
+
             {CATEGORICAL_OPTIONS[name].map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -473,16 +499,16 @@ export default function NetworkIntrusion() {
             disabled={isAnalyzing}
             aria-invalid={invalid}
             placeholder="Enter number"
-            className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none focus:ring-4 disabled:opacity-60 ${
+            className={`theme-input w-full rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-4 disabled:opacity-60 ${
               invalid
-                ? 'border-red-400/50 focus:ring-red-400/10'
-                : 'border-white/10 focus:border-blue-500 focus:ring-blue-500/10'
+                ? 'border-red-400/60 focus:ring-red-400/10'
+                : 'focus:border-purple-500 focus:ring-purple-500/10'
             }`}
           />
         )}
 
         {invalid && (
-          <p className="text-xs text-red-300">
+          <p className="text-xs text-red-600 dark:text-red-400">
             Invalid or missing value.
           </p>
         )}
@@ -507,27 +533,30 @@ export default function NetworkIntrusion() {
   }).length
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="mx-auto max-w-6xl space-y-6 theme-text">
+      {/* Page header */}
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-600 dark:text-purple-400">
           AI Analysis
         </p>
 
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-text sm:text-3xl">
           Network Intrusion Detection
         </h1>
 
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
+        <p className="mt-1.5 max-w-2xl text-sm theme-text-secondary">
           Analyze KDD Cup 99 network traffic and save model assessments to an investigation case.
         </p>
       </header>
 
+      {/* Case loading error */}
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300 sm:flex-row sm:items-center sm:justify-between"
         >
           <span>{casesError}</span>
+
           <button
             type="button"
             onClick={retryCases}
@@ -539,10 +568,10 @@ export default function NetworkIntrusion() {
       )}
 
       {/* Shared case selection */}
-      <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+      <div className="theme-card rounded-2xl p-5 sm:p-6">
         <label
           htmlFor="network-intrusion-case"
-          className="mb-2 block text-sm font-medium text-slate-200"
+          className="mb-2 block text-sm font-medium theme-text"
         >
           Investigation case
         </label>
@@ -558,7 +587,7 @@ export default function NetworkIntrusion() {
             setCsvError('')
           }}
           disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
-          className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-60"
+          className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none focus:border-purple-500 disabled:opacity-60"
         >
           {cases.length === 0 && (
             <option value="">
@@ -574,7 +603,7 @@ export default function NetworkIntrusion() {
         </select>
 
         {selectedCase && (
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs theme-text-muted">
             Findings will be saved to {selectedCase.case_number}.
           </p>
         )}
@@ -585,40 +614,44 @@ export default function NetworkIntrusion() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="space-y-5 rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6"
+          className="theme-card space-y-5 rounded-2xl p-5 sm:p-6"
         >
           <div className="flex items-center gap-3">
-            <Network size={22} className="text-blue-300" />
+            <Network size={22} className="text-purple-600 dark:text-purple-400" />
+
             <div>
-              <h2 className="font-semibold text-white">
+              <h2 className="font-semibold theme-text">
                 Manual analysis
               </h2>
-              <p className="text-xs text-slate-400">
+
+              <p className="text-xs theme-text-secondary">
                 Enter all 41 network traffic features.
               </p>
             </div>
           </div>
 
+          {/* Manual analysis error */}
           {analysisError && (
             <p
               role="alert"
-              className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300"
+              className="rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300"
             >
               {analysisError}
             </p>
           )}
 
-          <div className="max-h-[650px] space-y-5 overflow-y-auto pr-2">
+          {/* Feature groups */}
+          <div className="theme-scroll max-h-[650px] space-y-5 overflow-y-auto pr-2">
             {FEATURE_GROUPS.map((group) => (
               <fieldset
                 key={group.title}
-                className="min-w-0 space-y-4 rounded-xl border border-white/[0.07] bg-[#292b2e] p-4 sm:p-5"
+                className="theme-card-secondary min-w-0 space-y-4 rounded-xl p-4 sm:p-5"
               >
-                <legend className="px-2 text-sm font-semibold text-slate-100">
+                <legend className="px-2 text-sm font-semibold theme-text">
                   {group.title}
                 </legend>
 
-                <p className="-mt-1 text-xs text-slate-500">
+                <p className="-mt-1 text-xs theme-text-muted">
                   {group.description}
                 </p>
 
@@ -629,8 +662,9 @@ export default function NetworkIntrusion() {
             ))}
           </div>
 
-          <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-500">
+          {/* Manual form actions */}
+          <div className="flex flex-col-reverse gap-3 border-t theme-divider pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs theme-text-muted">
               {completedFeatures} of 41 features completed
             </p>
 
@@ -639,7 +673,7 @@ export default function NetworkIntrusion() {
                 type="button"
                 onClick={resetManualForm}
                 disabled={isAnalyzing}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300 disabled:opacity-50"
+                className="theme-button theme-hover inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm transition disabled:opacity-50"
               >
                 <RotateCcw size={15} />
                 Reset
@@ -653,7 +687,7 @@ export default function NetworkIntrusion() {
                   !caseId ||
                   completedFeatures !== 41
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isAnalyzing ? (
                   <LoaderCircle size={16} className="animate-spin" />
@@ -668,25 +702,28 @@ export default function NetworkIntrusion() {
         </form>
 
         {/* CSV batch analysis */}
-        <div className="space-y-5 rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+        <div className="theme-card space-y-5 rounded-2xl p-5 sm:p-6">
           <div className="flex items-center gap-3">
-            <FileSpreadsheet size={22} className="text-emerald-300" />
+            <FileSpreadsheet size={22} className="text-emerald-600 dark:text-emerald-400" />
+
             <div>
-              <h2 className="font-semibold text-white">
+              <h2 className="font-semibold theme-text">
                 CSV batch analysis
               </h2>
-              <p className="text-xs text-slate-400">
+
+              <p className="text-xs theme-text-secondary">
                 Analyze multiple network connections in one request.
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-blue-400/15 bg-blue-500/[0.05] p-4">
-            <p className="text-sm font-medium text-blue-200">
+          {/* CSV requirements */}
+          <div className="rounded-xl border border-purple-400/30 bg-purple-500/5 p-4">
+            <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
               CSV requirements
             </p>
 
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-400">
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed theme-text-secondary">
               <li>One CSV file, maximum 5 MB.</li>
               <li>All 41 KDD Cup 99 feature columns are required.</li>
               <li>An optional class column is ignored by the model.</li>
@@ -695,23 +732,24 @@ export default function NetworkIntrusion() {
             </ul>
           </div>
 
+          {/* CSV upload form */}
           <form onSubmit={handleCsvSubmit} className="space-y-4">
             <label
               htmlFor="network-csv-file"
-              className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/15 bg-[#242629] p-6 text-center transition hover:border-blue-400/50"
+              className="theme-elevated theme-hover flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-purple-400/30 p-6 text-center transition hover:border-purple-400/60"
             >
-              <Upload size={30} className="mb-3 text-blue-300" />
+              <Upload size={30} className="mb-3 text-purple-600 dark:text-purple-400" />
 
-              <span className="text-sm font-medium text-slate-200">
+              <span className="text-sm font-medium theme-text">
                 Choose one CSV file
               </span>
 
-              <span className="mt-1 text-xs text-slate-500">
+              <span className="mt-1 text-xs theme-text-muted">
                 CSV format · Maximum 5 MB
               </span>
 
               {csvFile && (
-                <span className="mt-3 break-all text-xs text-emerald-300">
+                <span className="mt-3 break-all text-xs text-emerald-700 dark:text-emerald-300">
                   {csvFile.name}
                 </span>
               )}
@@ -728,10 +766,11 @@ export default function NetworkIntrusion() {
               />
             </label>
 
+            {/* CSV error */}
             {csvError && (
               <p
                 role="alert"
-                className="rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300"
+                className="rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300"
               >
                 <AlertCircle size={15} className="mr-2 inline" />
                 {csvError}
@@ -760,80 +799,91 @@ export default function NetworkIntrusion() {
 
           {/* Batch response */}
           {csvResult && (
-            <div className="space-y-4 border-t border-white/[0.07] pt-5">
+            <div className="space-y-4 border-t theme-divider pt-5">
               <div>
-                <h3 className="font-semibold text-white">
+                <h3 className="font-semibold theme-text">
                   CSV analysis summary
                 </h3>
-                <p className="mt-1 break-all text-xs text-slate-400">
+
+                <p className="mt-1 break-all text-xs theme-text-secondary">
                   {csvResult.filename}
                 </p>
               </div>
 
+              {/* Batch statistics */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-                  <p className="text-xs text-slate-400">
+                <div className="theme-elevated rounded-xl p-4">
+                  <p className="text-xs theme-text-secondary">
                     Total connections
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-white">
+
+                  <p className="mt-1 text-2xl font-semibold theme-text">
                     {csvResult.total_connections}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-red-400/15 bg-red-400/[0.06] p-4">
-                  <p className="text-xs text-red-300">
+                <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-4">
+                  <p className="text-xs text-red-700 dark:text-red-300">
                     Attack connections
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-white">
+
+                  <p className="mt-1 text-2xl font-semibold theme-text">
                     {csvResult.attack_connections}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] p-4">
-                  <p className="text-xs text-emerald-300">
+                <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300">
                     Normal connections
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-white">
+
+                  <p className="mt-1 text-2xl font-semibold theme-text">
                     {csvResult.normal_connections}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-amber-400/15 bg-amber-400/[0.06] p-4">
-                  <p className="text-xs text-amber-300">
+                <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
                     Attack percentage
                   </p>
-                  <p className="mt-1 text-2xl font-semibold text-white">
+
+                  <p className="mt-1 text-2xl font-semibold theme-text">
                     {csvResult.attack_percentage.toFixed(2)}%
                   </p>
                 </div>
               </div>
 
+              {/* Batch model details */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-3">
-                  <p className="text-xs text-slate-500">Model</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                <div className="theme-elevated rounded-xl p-3">
+                  <p className="text-xs theme-text-muted">Model</p>
+
+                  <p className="mt-1 text-sm font-medium theme-text">
                     {csvResult.model}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-3">
-                  <p className="text-xs text-slate-500">Threshold</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                <div className="theme-elevated rounded-xl p-3">
+                  <p className="text-xs theme-text-muted">Threshold</p>
+
+                  <p className="mt-1 text-sm font-medium theme-text">
                     {formatProbability(csvResult.threshold)}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-3 sm:col-span-2">
-                  <p className="text-xs text-slate-500">Dataset</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                <div className="theme-elevated rounded-xl p-3 sm:col-span-2">
+                  <p className="text-xs theme-text-muted">Dataset</p>
+
+                  <p className="mt-1 text-sm font-medium theme-text">
                     {csvResult.dataset}
                   </p>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-white/[0.07]">
-                <table className="w-full min-w-[480px] text-left text-xs">
-                  <thead className="bg-[#242629] text-slate-400">
+              {/* Connection results table */}
+              <div className="overflow-x-auto rounded-xl border theme-divider">
+                <table className="theme-table w-full min-w-[480px] text-left text-xs">
+                  <thead className="theme-table-header">
                     <tr>
                       <th className="px-3 py-3">Connection</th>
                       <th className="px-3 py-3">Prediction</th>
@@ -846,7 +896,7 @@ export default function NetworkIntrusion() {
                     {csvResult.results.map((item) => (
                       <tr
                         key={item.connection_index}
-                        className="border-t border-white/[0.06] text-slate-300"
+                        className="border-t theme-divider theme-text-secondary"
                       >
                         <td className="px-3 py-3">
                           {item.connection_index}
@@ -856,8 +906,8 @@ export default function NetworkIntrusion() {
                           <span
                             className={`rounded-full border px-2 py-1 ${
                               item.class === 1
-                                ? 'border-red-400/20 bg-red-400/10 text-red-300'
-                                : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                                ? 'border-red-400/30 bg-red-500/10 text-red-700 dark:text-red-300'
+                                : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                             }`}
                           >
                             {item.prediction}
@@ -877,23 +927,26 @@ export default function NetworkIntrusion() {
                 </table>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4">
+              {/* Finding saved */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-4">
                 <div className="flex items-start gap-2">
                   <BadgeCheck
                     size={16}
-                    className="mt-0.5 shrink-0 text-emerald-300"
+                    className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
                   />
+
                   <div>
-                    <p className="text-sm font-medium text-emerald-200">
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
                       Combined finding saved successfully
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">
+
+                    <p className="mt-1 text-xs theme-text-secondary">
                       {csvResult.message}
                     </p>
                   </div>
                 </div>
 
-                <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+                <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/5 px-3 py-2 font-mono text-xs text-emerald-700 dark:text-emerald-300">
                   Finding #{csvResult.finding_id}
                 </span>
               </div>
@@ -906,14 +959,16 @@ export default function NetworkIntrusion() {
       {result && (
         <section
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+          className="theme-card overflow-hidden rounded-2xl"
         >
-          <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          {/* Result header */}
+          <div className="flex flex-col gap-4 border-b theme-divider p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-600 dark:text-purple-400">
                 Analysis result
               </p>
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+
+              <h2 className="mt-1.5 text-lg font-semibold theme-text">
                 {result.module}
               </h2>
             </div>
@@ -925,6 +980,7 @@ export default function NetworkIntrusion() {
             </span>
           </div>
 
+          {/* Result details */}
           <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
             {[
               ['Prediction', result.prediction],
@@ -939,27 +995,30 @@ export default function NetworkIntrusion() {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-xl border border-white/[0.07] bg-[#242629] p-4"
+                className="theme-elevated rounded-xl p-4"
               >
-                <p className="text-xs text-slate-500">{label}</p>
-                <p className="mt-2 break-words text-sm font-semibold text-white">
+                <p className="text-xs theme-text-muted">{label}</p>
+
+                <p className="mt-2 break-words text-sm font-semibold theme-text">
                   {value}
                 </p>
               </div>
             ))}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2 lg:col-span-3">
+            {/* Finding saved confirmation */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-4 sm:col-span-2 lg:col-span-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300/70">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                   Finding saved to case #{result.case_id}
                   {selectedCase ? ` · ${selectedCase.case_number}` : ''}
                 </p>
-                <p className="mt-1 text-sm font-medium text-emerald-200">
+
+                <p className="mt-1 text-sm font-medium text-emerald-700 dark:text-emerald-300">
                   {result.message}
                 </p>
               </div>
 
-              <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+              <span className="rounded-lg border border-emerald-400/30 bg-emerald-500/5 px-3 py-2 font-mono text-xs text-emerald-700 dark:text-emerald-300">
                 Finding #{result.finding_id}
               </span>
             </div>
@@ -967,12 +1026,14 @@ export default function NetworkIntrusion() {
         </section>
       )}
 
-      <aside className="flex items-start gap-3 rounded-xl border border-amber-400/15 bg-amber-400/[0.045] p-4">
+      {/* Disclaimer */}
+      <aside className="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-500/5 p-4">
         <ShieldAlert
           size={18}
-          className="mt-0.5 shrink-0 text-amber-300"
+          className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
         />
-        <p className="text-xs leading-relaxed text-slate-400">
+
+        <p className="text-xs leading-relaxed theme-text-secondary">
           Predictions are AI-assisted decision support, not proof that an
           intrusion occurred. This model uses the KDD Cup 99 feature set.
           Real-world performance may differ.

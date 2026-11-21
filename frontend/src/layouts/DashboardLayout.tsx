@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import {
   ChevronDown,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import { useTheme } from '../context/useTheme'
 import { dashboardNavigation } from './dashboardNavigation'
 import CyberFusionChatbot from '../components/CyberFusionChatbot'
 
@@ -27,12 +29,31 @@ function getPageTitle(pathname: string): string {
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const isDark = theme === 'dark'
+
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+
   const pageTitle = getPageTitle(location.pathname)
+
+  const colors = {
+    appBg: 'var(--app-bg)',
+    sidebarBg: 'var(--sidebar-bg)',
+    surfaceBg: 'var(--surface-bg)',
+    surfaceSecondary: 'var(--surface-secondary)',
+    headerBg: 'var(--header-bg)',
+    border: 'var(--border-color)',
+    text: 'var(--text-primary)',
+    secondary: 'var(--text-secondary)',
+    muted: 'var(--text-muted)',
+    accent: 'var(--accent)',
+    accentBg: 'var(--accent-bg)',
+  }
 
   function handleLogout() {
     setProfileOpen(false)
@@ -42,66 +63,103 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1F2022] text-[#E5E7EB]">
+    <div
+      className="min-h-screen transition-colors duration-200"
+      style={{
+        backgroundColor: colors.appBg,
+        color: colors.text,
+      }}
+    >
+      {/* Mobile overlay */}
       {mobileOpen && (
         <button
           type="button"
           aria-label="Close navigation menu"
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden"
         />
       )}
 
+      {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-white/[0.07] bg-[#171819] transition-all duration-200 ${
-          collapsed ? 'w-[76px]' : 'w-[264px]'
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r transition-all duration-200 ${
+          collapsed ? 'w-[76px]' : 'w-[248px]'
         } ${
           mobileOpen
             ? 'translate-x-0'
             : '-translate-x-full lg:translate-x-0'
-        } lg:shadow-none`}
+        }`}
+        style={{
+          backgroundColor: colors.sidebarBg,
+          borderColor: colors.border,
+        }}
       >
+        {/* Logo / Branding */}
         <div
-          className={`flex h-[72px] shrink-0 items-center border-b border-white/[0.07] ${
-            collapsed ? 'justify-center px-3' : 'justify-between px-5'
+          className={`flex h-[72px] shrink-0 items-center border-b ${
+            collapsed ? 'justify-center px-3' : 'px-5'
           }`}
+          style={{ borderColor: colors.border }}
         >
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-400">
-              <Shield size={22} strokeWidth={1.8} aria-hidden="true" />
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#17151D] text-[#A48BEF]">
+              <Shield size={21} strokeWidth={1.8} />
             </span>
+
             {!collapsed && (
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold tracking-wide text-white">
+                <p
+                  className="truncate text-[15px] font-semibold tracking-wide"
+                  style={{ color: colors.text }}
+                >
                   CyberFusion
                 </p>
-                <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.18em] text-slate-500">
-                  Digital forensics
+                <p
+                  className="truncate text-[10px] tracking-wide"
+                  style={{ color: colors.muted }}
+                >
+                  Digital Forensics Workspace
                 </p>
               </div>
             )}
           </div>
+
           <button
             type="button"
             aria-label="Close navigation menu"
             onClick={() => setMobileOpen(false)}
-            className="ml-2 rounded-lg p-2 text-slate-400 transition hover:bg-white/5 hover:text-white lg:hidden"
+            className="ml-auto rounded-lg p-2 hover:bg-black/5 lg:hidden"
+            style={{ color: colors.muted }}
           >
-            <X size={18} aria-hidden="true" />
+            <X size={18} />
           </button>
         </div>
 
+        {/* Navigation */}
         <nav
           aria-label="Main navigation"
           className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-5"
         >
+          {!collapsed && (
+            <p
+              className="px-3 text-[10px] font-medium uppercase tracking-[0.16em]"
+              style={{ color: colors.muted }}
+            >
+              Menu
+            </p>
+          )}
+
           {dashboardNavigation.map((section) => (
             <div key={section.label}>
-              {!collapsed && (
-                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.17em] text-slate-600">
+              {!collapsed && section.label !== 'Main' && (
+                <p
+                  className="mb-2 px-3 text-[10px] font-medium uppercase tracking-[0.14em]"
+                  style={{ color: colors.muted }}
+                >
                   {section.label}
                 </p>
               )}
+
               <div className="space-y-1">
                 {section.items.map(({ label, path, icon: Icon }) => (
                   <NavLink
@@ -111,22 +169,36 @@ export default function DashboardLayout() {
                     title={collapsed ? label : undefined}
                     onClick={() => setMobileOpen(false)}
                     className={({ isActive }) =>
-                      `group flex min-h-10 items-center gap-3 rounded-xl px-3 text-[13px] transition-colors ${
+                      `group flex min-h-10 items-center gap-3 rounded-lg border px-3 text-[13px] transition-all duration-150 ${
                         collapsed ? 'justify-center' : ''
                       } ${
                         isActive
-                          ? 'bg-blue-500/15 font-medium text-blue-300'
-                          : 'text-slate-400 hover:bg-white/[0.045] hover:text-slate-100'
+                          ? 'font-medium'
+                          : 'border-transparent'
                       }`
                     }
+                    style={({ isActive }) => ({
+                      backgroundColor: isActive
+                        ? colors.accentBg
+                        : 'transparent',
+                      borderColor: isActive
+                        ? colors.border
+                        : 'transparent',
+                      color: isActive
+                        ? colors.accent
+                        : colors.secondary,
+                    })}
                   >
                     <Icon
                       size={18}
-                      strokeWidth={1.8}
+                      strokeWidth={1.7}
                       className="shrink-0"
                       aria-hidden="true"
                     />
-                    {!collapsed && <span className="truncate">{label}</span>}
+
+                    {!collapsed && (
+                      <span className="truncate">{label}</span>
+                    )}
                   </NavLink>
                 ))}
               </div>
@@ -134,19 +206,26 @@ export default function DashboardLayout() {
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-white/[0.07] p-3">
+        {/* Sidebar collapse */}
+        <div
+          className="shrink-0 border-t p-3"
+          style={{ borderColor: colors.border }}
+        >
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
-            className="hidden min-h-10 w-full items-center gap-3 rounded-xl px-3 text-xs text-slate-500 transition hover:bg-white/[0.045] hover:text-slate-200 lg:flex"
+            className={`hidden min-h-10 w-full items-center gap-3 rounded-lg px-3 text-xs transition lg:flex ${
+              collapsed ? 'justify-center' : ''
+            }`}
+            style={{ color: colors.secondary }}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? (
-              <ChevronRight size={17} aria-hidden="true" />
+              <ChevronRight size={17} />
             ) : (
               <>
-                <ChevronLeft size={17} aria-hidden="true" />
+                <ChevronLeft size={17} />
                 <span>Collapse sidebar</span>
               </>
             )}
@@ -154,83 +233,121 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
+      {/* Main area */}
       <div
         className={`min-h-screen transition-[padding] duration-200 ${
-          collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]'
+          collapsed ? 'lg:pl-[76px]' : 'lg:pl-[248px]'
         }`}
       >
-        <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-white/[0.07] bg-[#1F2022]/95 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+        {/* Top bar */}
+        <header
+          className="sticky top-0 z-20 flex h-[64px] items-center justify-between border-b px-4 backdrop-blur-md sm:px-6"
+          style={{
+            backgroundColor: colors.headerBg,
+            borderColor: colors.border,
+          }}
+        >
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation menu"
-              className="rounded-lg p-2 text-slate-400 transition hover:bg-white/5 hover:text-white lg:hidden"
+              className="rounded-lg p-2 hover:bg-black/5 lg:hidden"
+              style={{ color: colors.secondary }}
             >
-              <Menu size={20} aria-hidden="true" />
+              <Menu size={20} />
             </button>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-100">
+
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <span
+                className="hidden sm:block"
+                style={{ color: colors.muted }}
+              >
+                CyberFusion
+              </span>
+
+              <ChevronRight
+                size={14}
+                className="hidden sm:block"
+                style={{ color: colors.muted }}
+              />
+
+              <span className="truncate" style={{ color: colors.text }}>
                 {pageTitle}
-              </p>
-              <p className="hidden text-[11px] text-slate-500 sm:block">
-                CyberFusion <span className="px-1 text-slate-700">/</span>{' '}
-                {pageTitle}
-              </p>
+              </span>
             </div>
           </div>
 
+          {/* Profile */}
           <div className="relative ml-3">
             <button
               type="button"
               onClick={() => setProfileOpen((value) => !value)}
               aria-haspopup="menu"
               aria-expanded={profileOpen}
-              className="flex items-center gap-2 rounded-xl border border-transparent py-1.5 pl-2 pr-1.5 text-left transition hover:border-white/[0.08] hover:bg-white/[0.035] sm:gap-3 sm:pl-3 sm:pr-2"
+              className="flex items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 transition hover:bg-black/5 sm:gap-3"
             >
-              <span className="block max-w-20 text-right sm:max-w-36">
-                <span className="block truncate text-[11px] font-medium text-slate-200 sm:text-xs">
-                  {user?.username}
-                </span>
-                <span className="mt-0.5 block text-[9px] font-medium tracking-wide text-blue-400 sm:text-[10px]">
-                  {user?.role.toUpperCase()}
-                </span>
-              </span>
-              <span className="flex size-9 items-center justify-center rounded-full border border-blue-400/20 bg-blue-500/10 text-sm font-semibold text-blue-300">
+              <span className="flex size-8 items-center justify-center rounded-lg border border-[#37313F] bg-[#1C1924] text-sm font-medium text-[#B7A0F3]">
                 {user?.username.slice(0, 1).toUpperCase()}
               </span>
+
+              <span
+                className="hidden max-w-32 truncate text-xs sm:block"
+                style={{ color: colors.secondary }}
+              >
+                {user?.username}
+              </span>
+
               <ChevronDown
-                size={15}
-                className={`hidden text-slate-500 transition sm:block ${
+                size={14}
+                className={`transition ${
                   profileOpen ? 'rotate-180' : ''
                 }`}
-                aria-hidden="true"
+                style={{ color: colors.muted }}
               />
             </button>
 
+            {/* Dropdown */}
             {profileOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-white/[0.09] bg-[#282A2D] p-2 shadow-xl shadow-black/30"
+                className="absolute right-0 top-full mt-2 w-60 rounded-xl border p-2 shadow-xl shadow-black/10"
+                style={{
+                  backgroundColor: colors.surfaceBg,
+                  borderColor: colors.border,
+                }}
               >
-                <div className="border-b border-white/[0.07] px-3 py-3">
-                  <p className="truncate text-sm font-medium text-slate-100">
+                <div
+                  className="border-b px-3 py-3"
+                  style={{ borderColor: colors.border }}
+                >
+                  <p
+                    className="truncate text-sm font-medium"
+                    style={{ color: colors.text }}
+                  >
                     {user?.username}
                   </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">
+
+                  <p
+                    className="mt-1 truncate text-xs"
+                    style={{ color: colors.muted }}
+                  >
                     {user?.email}
                   </p>
-                  <span className="mt-2 inline-flex rounded-md border border-blue-400/15 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold tracking-wide text-blue-300">
+
+                  <span className="mt-2 inline-flex rounded-md border border-[#383141] bg-[#211D29] px-2 py-1 text-[10px] font-medium text-[#B7A0F3]">
                     {user?.role.toUpperCase()}
                   </span>
                 </div>
+
                 <button
                   type="button"
                   role="menuitem"
                   onClick={handleLogout}
-                  className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
+                  className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition hover:bg-black/5"
+                  style={{ color: colors.secondary }}
                 >
-                  <LogOut size={16} aria-hidden="true" />
+                  <LogOut size={16} />
                   Sign out
                 </button>
               </div>
@@ -238,11 +355,13 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        <main className="min-h-[calc(100vh-72px)] p-4 sm:p-6 lg:p-8">
+        {/* Page content */}
+        <main className="min-h-[calc(100vh-64px)] p-4 sm:p-5 lg:p-6">
           <Outlet />
         </main>
       </div>
 
+      {/* Chatbot */}
       <CyberFusionChatbot />
     </div>
   )
@@ -251,16 +370,19 @@ export default function DashboardLayout() {
 export function ModulePlaceholder({ title }: { title: string }) {
   return (
     <section className="mx-auto max-w-6xl">
-      <div className="rounded-2xl border border-white/[0.08] bg-[#303236] p-6 sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
-          CyberFusion workspace
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+      <div
+        className="rounded-xl border p-5 sm:p-6"
+        style={{
+          backgroundColor: 'var(--surface-bg)',
+          borderColor: 'var(--border-color)',
+        }}
+      >
+        <h1
+          className="text-lg font-semibold"
+          style={{ color: 'var(--text-primary)' }}
+        >
           {title}
         </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          This workspace module is not available yet.
-        </p>
       </div>
     </section>
   )

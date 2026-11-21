@@ -1,26 +1,149 @@
+
 @import "tailwindcss";
+
+/* =========================================
+   CYBERFUSION - UNIFIED THEME SYSTEM
+   Dark Mode (Default) + Light Mode
+========================================= */
 
 :root {
   font-family: Inter, system-ui, sans-serif;
-  color: #e5e7eb;
-  background: #1f2022;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  color-scheme: dark;
+
+  /* Main backgrounds */
+  --bg-main: #0b0b0d;
+  --bg-sidebar: #080809;
+  --bg-card: #151518;
+  --bg-card-hover: #1c1c20;
+  --bg-elevated: #222226;
+  --bg-input: #111114;
+
+  /* Borders */
+  --border-color: #29292e;
+  --border-hover: #3a3941;
+
+  /* Text */
+  --text-primary: #e5e5e8;
+  --text-secondary: #929198;
+  --text-muted: #66656d;
+
+  /* Accent colors */
+  --accent-purple: #9b82e8;
+  --accent-purple-soft: #b6a1f5;
+  --accent-teal: #39b99b;
+  --accent-red: #e16d78;
+  --accent-yellow: #e4b95e;
+  --accent-blue: #69aef0;
+
+  /* Scrollbars */
+  --scrollbar-track: #0b0b0d;
+  --scrollbar-thumb: #35343b;
+  --scrollbar-thumb-hover: #55515e;
+
+  /* Selection */
+  --selection-bg: rgba(155, 130, 232, 0.3);
+  --selection-text: #ffffff;
+
+  /* Radius */
+  --radius-card: 14px;
+
+  /* Unified theme aliases - used by DashboardLayout */
+  --app-bg: var(--bg-main);
+  --sidebar-bg: var(--bg-sidebar);
+  --surface-bg: var(--bg-card);
+  --surface-secondary: var(--bg-input);
+  --header-bg: rgba(11, 11, 13, 0.95);
+
+  --accent: var(--accent-purple);
+  --accent-bg: #24222b;
 }
+
+/* =========================================
+   LIGHT THEME
+========================================= */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Main backgrounds */
+  --bg-main: #f5f5f7;
+  --bg-sidebar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0eef5;
+  --bg-elevated: #eae8ef;
+  --bg-input: #f7f7f9;
+
+  /* Borders */
+  --border-color: #e1dfe7;
+  --border-hover: #c9c3d6;
+
+  /* Text */
+  --text-primary: #24232a;
+  --text-secondary: #666371;
+  --text-muted: #92909d;
+
+  /* Accent colors */
+  --accent-purple: #7c5cce;
+  --accent-purple-soft: #9578e2;
+  --accent-teal: #168b70;
+  --accent-red: #c94f5d;
+  --accent-yellow: #b98725;
+  --accent-blue: #347dbd;
+
+  /* Scrollbars */
+  --scrollbar-track: #f5f5f7;
+  --scrollbar-thumb: #d2cfda;
+  --scrollbar-thumb-hover: #b7b2c3;
+
+  /* Selection */
+  --selection-bg: rgba(124, 92, 206, 0.2);
+  --selection-text: #24232a;
+
+  /* Unified theme aliases */
+  --app-bg: var(--bg-main);
+  --sidebar-bg: var(--bg-sidebar);
+  --surface-bg: var(--bg-card);
+  --surface-secondary: var(--bg-card-hover);
+  --header-bg: rgba(255, 255, 255, 0.95);
+
+  --accent: var(--accent-purple);
+  --accent-bg: #ede9fe;
+}
+
+/* =========================================
+   GLOBAL RESET
+========================================= */
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background-color: var(--app-bg);
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #1f2022;
+  background-color: var(--app-bg);
+  color: var(--text-primary);
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
 }
+
+/* =========================================
+   TYPOGRAPHY & ELEMENTS
+========================================= */
 
 button,
 input,
@@ -31,4 +154,176 @@ select {
 
 button {
   cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background-color: var(--selection-bg);
+  color: var(--selection-text);
+}
+
+/* =========================================
+   FOCUS ACCESSIBILITY
+========================================= */
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
+}
+
+/* =========================================
+   SCROLLBAR
+========================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* =========================================
+   SMOOTH THEME TRANSITIONS
+========================================= */
+
+body,
+main,
+aside,
+header,
+section,
+article,
+nav,
+div {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+/* =========================================
+   THEME COMPONENT CLASSES
+   Use these instead of hardcoded colors
+========================================= */
+
+/* Main cards and panels */
+.theme-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-card);
+}
+
+/* Secondary cards and nested boxes */
+.theme-card-secondary {
+  background-color: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-card);
+}
+
+/* Elevated elements and panels */
+.theme-elevated {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Primary text */
+.theme-text {
+  color: var(--text-primary);
+}
+
+/* Secondary text */
+.theme-text-secondary {
+  color: var(--text-secondary);
+}
+
+/* Muted text */
+.theme-text-muted {
+  color: var(--text-muted);
+}
+
+/* Inputs, selects and textareas */
+.theme-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.theme-input::placeholder {
+  color: var(--text-muted);
+}
+
+.theme-input:focus {
+  border-color: var(--accent-purple);
+  outline: none;
+}
+
+/* Table */
+.theme-table {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Table header */
+.theme-table-header {
+  background-color: var(--bg-card-hover);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+/* Dividers */
+.theme-divider {
+  border-color: var(--border-color);
+}
+
+/* Hover background */
+.theme-hover:hover {
+  background-color: var(--bg-card-hover);
+}
+
+/* Popup, dropdown and modal */
+.theme-popup {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+/* Theme-aware buttons */
+.theme-button {
+  background-color: var(--bg-card-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.theme-button:hover {
+  border-color: var(--border-hover);
+}
+
+/* =========================================
+   THEME SCROLLBARS FOR INNER CONTAINERS
+========================================= */
+
+.theme-scroll {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
 }

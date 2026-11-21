@@ -171,13 +171,13 @@ function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
-      return 'border-red-400/20 bg-red-400/10 text-red-300'
+      return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300'
 
     case 'MEDIUM':
-      return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300'
 
     default:
-      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300'
   }
 }
 
@@ -550,11 +550,11 @@ export default function ServerLogAnalysis() {
       <div key={featureName} className="space-y-1.5">
         <label
           htmlFor={`server-log-${featureName}`}
-          className="block text-xs font-medium text-slate-300"
+          className="block text-xs font-medium theme-text-secondary"
         >
           {featureName}
 
-          <span className="ml-1 text-red-300" aria-hidden="true">
+          <span className="ml-1 text-red-600 dark:text-red-300" aria-hidden="true">
             *
           </span>
         </label>
@@ -577,10 +577,10 @@ export default function ServerLogAnalysis() {
               ? `server-log-error-${featureName}`
               : undefined
           }
-          className={`w-full rounded-lg border bg-[#242629] px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:ring-4 disabled:opacity-60 ${
+          className={`theme-input w-full rounded-lg px-3 py-2.5 text-sm outline-none transition placeholder:opacity-50 focus:ring-4 disabled:opacity-60 ${
             hasError
               ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/10'
-              : 'border-white/10 hover:border-white/20 focus:border-blue-500 focus:ring-blue-500/10'
+              : 'hover:opacity-90 focus:border-purple-500 focus:ring-purple-500/10'
           }`}
           placeholder="Enter event count"
         />
@@ -588,7 +588,7 @@ export default function ServerLogAnalysis() {
         {hasError && (
           <p
             id={`server-log-error-${featureName}`}
-            className="text-[11px] text-red-300"
+            className="text-[11px] text-red-700 dark:text-red-300"
           >
             Enter a finite number greater than or equal to zero.
           </p>
@@ -620,20 +620,20 @@ export default function ServerLogAnalysis() {
   // -------------------------------------------------------
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="mx-auto max-w-6xl space-y-6 theme-text">
 
       {/* HEADER */}
 
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-600 dark:text-purple-400">
           AI Analysis
         </p>
 
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-text sm:text-3xl">
           Server Log Analysis
         </h1>
 
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
+        <p className="mt-1.5 max-w-2xl text-sm theme-text-secondary">
           Analyze HDFS server log event-count features and save
           model assessments to an investigation case.
         </p>
@@ -644,9 +644,9 @@ export default function ServerLogAnalysis() {
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-400/20 dark:bg-red-400/[0.07] sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="flex items-center gap-2 text-sm text-red-300">
+          <p className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
             <AlertCircle size={17} />
             {casesError}
           </p>
@@ -655,7 +655,7 @@ export default function ServerLogAnalysis() {
             type="button"
             onClick={retryCases}
             disabled={isLoadingCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 disabled:opacity-50 sm:self-auto"
+            className="self-start rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:border-red-300/20 dark:text-red-200 dark:hover:bg-red-400/10 disabled:opacity-50 sm:self-auto"
           >
             {isLoadingCases ? 'Loading…' : 'Retry'}
           </button>
@@ -667,7 +667,7 @@ export default function ServerLogAnalysis() {
       {analysisError && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300"
         >
           <AlertCircle size={17} className="mt-0.5 shrink-0" />
           <span>{analysisError}</span>
@@ -676,18 +676,18 @@ export default function ServerLogAnalysis() {
 
       {/* CSV BATCH UPLOAD */}
 
-      <section className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7">
+      <section className="theme-card p-5 sm:p-7">
         <div className="flex items-start gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-400/20 bg-purple-500/10 text-purple-300">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-400/20 dark:bg-purple-500/[0.08] dark:text-purple-300">
             <FileSpreadsheet size={21} />
           </span>
 
           <div>
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-base font-semibold theme-text">
               CSV Batch Analysis
             </h2>
 
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <p className="mt-1 text-xs leading-relaxed theme-text-secondary">
               Upload a processed HDFS feature CSV to analyze multiple
               blocks in one request.
             </p>
@@ -698,9 +698,7 @@ export default function ServerLogAnalysis() {
 
           {/* CSV FILE INPUT */}
 
-          <div
-            className="rounded-xl border border-dashed border-white/15 bg-[#292b2e] p-5 transition hover:border-purple-400/40 sm:p-7"
-          >
+          <div className="theme-card-secondary rounded-xl border-dashed p-5 transition hover:border-purple-400/50 sm:p-7">
             <input
               ref={csvInputRef}
               id="server-log-csv"
@@ -716,31 +714,31 @@ export default function ServerLogAnalysis() {
                 htmlFor="server-log-csv"
                 className="flex cursor-pointer flex-col items-center text-center"
               >
-                <span className="flex size-12 items-center justify-center rounded-xl bg-purple-500/10 text-purple-300">
+                <span className="flex size-12 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-500/[0.08] dark:text-purple-300">
                   <FileUp size={23} />
                 </span>
 
-                <span className="mt-3 text-sm font-semibold text-slate-100">
+                <span className="mt-3 text-sm font-semibold theme-text">
                   Click to upload CSV file
                 </span>
 
-                <span className="mt-1 text-xs text-slate-500">
+                <span className="mt-1 text-xs theme-text-muted">
                   CSV format · Maximum file size 5 MB
                 </span>
               </label>
             ) : (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-300">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-500/[0.08] dark:text-emerald-300">
                     <FileSpreadsheet size={21} />
                   </span>
 
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-white">
+                    <p className="truncate text-sm font-medium theme-text">
                       {csvFile.name}
                     </p>
 
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs theme-text-muted">
                       {(csvFile.size / 1024).toFixed(2)} KB · Ready for analysis
                     </p>
                   </div>
@@ -751,7 +749,7 @@ export default function ServerLogAnalysis() {
                   onClick={removeCsvFile}
                   disabled={isUploading}
                   aria-label="Remove selected CSV"
-                  className="flex size-9 shrink-0 items-center justify-center self-end rounded-lg border border-white/10 text-slate-400 transition hover:border-red-400/30 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50 sm:self-auto"
+                  className="theme-button flex size-9 shrink-0 items-center justify-center self-end rounded-lg transition hover:border-red-400/30 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-400/[0.08] dark:hover:text-red-300 disabled:opacity-50 sm:self-auto"
                 >
                   <X size={17} />
                 </button>
@@ -761,12 +759,12 @@ export default function ServerLogAnalysis() {
 
           {/* CSV FORMAT INFORMATION */}
 
-          <div className="rounded-lg border border-blue-400/10 bg-blue-500/[0.05] p-3">
-            <p className="text-xs font-medium text-blue-200">
+          <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 dark:border-purple-400/[0.12] dark:bg-purple-500/[0.04]">
+            <p className="text-xs font-medium text-purple-700 dark:text-purple-200">
               Required CSV format
             </p>
 
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <p className="mt-1 text-xs leading-relaxed theme-text-secondary">
               Include all 29 numerical columns E1–E29. Optional
               metadata columns BlockId, Label, Type, and target_label
               are ignored by the model.
@@ -776,7 +774,7 @@ export default function ServerLogAnalysis() {
           {/* UPLOAD BUTTON */}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs theme-text-muted">
               Selected case: {selectedCase?.case_number ?? 'No case selected'}
             </p>
 
@@ -788,7 +786,7 @@ export default function ServerLogAnalysis() {
                 !caseId ||
                 !csvFile
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2.5"
             >
               {isUploading ? (
                 <LoaderCircle size={16} className="animate-spin" />
@@ -807,19 +805,19 @@ export default function ServerLogAnalysis() {
       {batchResult && (
         <section
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+          className="theme-card overflow-hidden"
         >
-          <div className="flex flex-col gap-3 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div className="flex flex-col gap-3 theme-divider border-b p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-600 dark:text-purple-400">
                 CSV Batch Results
               </p>
 
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+              <h2 className="mt-1.5 text-lg font-semibold theme-text">
                 Server Log Analysis
               </h2>
 
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs theme-text-muted">
                 {batchResult.filename}
               </p>
             </div>
@@ -834,42 +832,42 @@ export default function ServerLogAnalysis() {
           {/* SUMMARY CARDS */}
 
           <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4 sm:p-7">
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Total blocks
               </p>
 
-              <p className="mt-2 text-2xl font-bold text-white">
+              <p className="mt-2 text-2xl font-bold theme-text">
                 {batchResult.total_blocks}
               </p>
             </div>
 
-            <div className="rounded-xl border border-red-400/10 bg-red-400/[0.04] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-300/70">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-400/[0.12] dark:bg-red-400/[0.035]">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300/70">
                 Anomalies
               </p>
 
-              <p className="mt-2 text-2xl font-bold text-red-300">
+              <p className="mt-2 text-2xl font-bold text-red-700 dark:text-red-300">
                 {batchResult.anomaly_blocks}
               </p>
             </div>
 
-            <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/[0.04] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-400/[0.12] dark:bg-emerald-400/[0.035]">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/70">
                 Normal blocks
               </p>
 
-              <p className="mt-2 text-2xl font-bold text-emerald-300">
+              <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">
                 {batchResult.normal_blocks}
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Anomaly rate
               </p>
 
-              <p className="mt-2 text-2xl font-bold text-white">
+              <p className="mt-2 text-2xl font-bold theme-text">
                 {batchResult.anomaly_percentage.toFixed(2)}%
               </p>
             </div>
@@ -878,32 +876,32 @@ export default function ServerLogAnalysis() {
           {/* ADDITIONAL METADATA */}
 
           <div className="grid gap-3 px-5 pb-5 sm:grid-cols-3 sm:px-7">
-            <div className="rounded-lg border border-white/[0.06] bg-[#292b2e] p-3">
-              <p className="text-[11px] text-slate-500">
+            <div className="theme-card-secondary rounded-lg p-3">
+              <p className="text-[11px] theme-text-muted">
                 Average confidence
               </p>
 
-              <p className="mt-1 text-sm font-semibold text-white">
+              <p className="mt-1 text-sm font-semibold theme-text">
                 {formatProbability(batchResult.average_confidence)}
               </p>
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-[#292b2e] p-3">
-              <p className="text-[11px] text-slate-500">
+            <div className="theme-card-secondary rounded-lg p-3">
+              <p className="text-[11px] theme-text-muted">
                 Decision threshold
               </p>
 
-              <p className="mt-1 text-sm font-semibold text-white">
+              <p className="mt-1 text-sm font-semibold theme-text">
                 {formatProbability(batchResult.threshold)}
               </p>
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-[#292b2e] p-3">
-              <p className="text-[11px] text-slate-500">
+            <div className="theme-card-secondary rounded-lg p-3">
+              <p className="text-[11px] theme-text-muted">
                 Model
               </p>
 
-              <p className="mt-1 text-sm font-semibold text-white">
+              <p className="mt-1 text-sm font-semibold theme-text">
                 {batchResult.model}
               </p>
             </div>
@@ -911,26 +909,26 @@ export default function ServerLogAnalysis() {
 
           {/* BLOCK RESULTS TABLE */}
 
-          <div className="border-t border-white/[0.07]">
+          <div className="theme-divider border-t">
             <div className="flex flex-wrap items-center justify-between gap-2 p-5 sm:px-7">
               <div>
-                <h3 className="text-sm font-semibold text-white">
+                <h3 className="text-sm font-semibold theme-text">
                   Individual block predictions
                 </h3>
 
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs theme-text-muted">
                   Predictions for each HDFS block in the uploaded CSV.
                 </p>
               </div>
 
-              <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400">
+              <span className="theme-button rounded-full px-3 py-1 text-xs theme-text-secondary">
                 {batchResult.results.length} records
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-xs">
-                <thead className="bg-[#242629] text-[10px] uppercase tracking-wider text-slate-500">
+            <div className="overflow-x-auto theme-scroll">
+              <table className="theme-table w-full min-w-[760px] text-left text-xs">
+                <thead className="theme-table-header">
                   <tr>
                     <th className="px-5 py-3 font-semibold sm:px-7">
                       #
@@ -958,17 +956,17 @@ export default function ServerLogAnalysis() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-white/[0.05]">
+                <tbody className="divide-y theme-divider">
                   {batchResult.results.map((item) => (
                     <tr
                       key={item.block_index}
-                      className="transition hover:bg-white/[0.025]"
+                      className="transition theme-hover"
                     >
-                      <td className="px-5 py-3.5 text-slate-500 sm:px-7">
+                      <td className="px-5 py-3.5 theme-text-muted sm:px-7">
                         {item.block_index}
                       </td>
 
-                      <td className="px-4 py-3.5 font-mono text-slate-300">
+                      <td className="px-4 py-3.5 font-mono theme-text-secondary">
                         {item.block_id ?? `Block ${item.block_index}`}
                       </td>
 
@@ -976,23 +974,23 @@ export default function ServerLogAnalysis() {
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${
                             item.class === 1
-                              ? 'border-red-400/20 bg-red-400/10 text-red-300'
-                              : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300'
+                              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300'
                           }`}
                         >
                           {item.prediction}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-red-300">
+                      <td className="px-4 py-3.5 text-red-700 dark:text-red-300">
                         {formatProbability(item.anomaly_probability)}
                       </td>
 
-                      <td className="px-4 py-3.5 text-emerald-300">
+                      <td className="px-4 py-3.5 text-emerald-700 dark:text-emerald-300">
                         {formatProbability(item.normal_probability)}
                       </td>
 
-                      <td className="px-4 py-3.5 font-medium text-slate-200">
+                      <td className="px-4 py-3.5 font-medium theme-text">
                         {formatProbability(item.confidence)}
                       </td>
                     </tr>
@@ -1004,19 +1002,19 @@ export default function ServerLogAnalysis() {
 
           {/* SAVED FINDING */}
 
-          <div className="m-5 flex flex-col gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:m-7 sm:flex-row sm:items-center sm:justify-between">
+          <div className="m-5 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-400/[0.15] dark:bg-emerald-400/[0.035] sm:m-7 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
+              <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                 <BadgeCheck size={15} />
                 Finding successfully saved
               </p>
 
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs theme-text-secondary">
                 {batchResult.message}
               </p>
             </div>
 
-            <span className="self-start rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+            <span className="self-start rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 font-mono text-xs text-emerald-800 dark:border-emerald-300/[0.15] dark:bg-black/10 dark:text-emerald-200">
               Finding #{batchResult.finding_id}
             </span>
           </div>
@@ -1032,19 +1030,19 @@ export default function ServerLogAnalysis() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+          className="theme-card p-5 sm:p-7"
         >
           <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-400/20 dark:bg-purple-500/[0.08] dark:text-purple-300">
               <Activity size={21} />
             </span>
 
             <div>
-              <h2 className="text-base font-semibold text-white">
+              <h2 className="text-base font-semibold theme-text">
                 Manual Feature Analysis
               </h2>
 
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+              <p className="mt-1 text-xs leading-relaxed theme-text-secondary">
                 Enter the 29 HDFS event-count features manually.
               </p>
             </div>
@@ -1057,7 +1055,7 @@ export default function ServerLogAnalysis() {
             <div className="space-y-2">
               <label
                 htmlFor="server-log-case"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium theme-text"
               >
                 Investigation case
               </label>
@@ -1078,7 +1076,7 @@ export default function ServerLogAnalysis() {
                   isUploading
                 }
                 required
-                className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:opacity-90 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 disabled:opacity-60"
               >
                 {cases.length === 0 && (
                   <option value="">
@@ -1096,7 +1094,7 @@ export default function ServerLogAnalysis() {
               </select>
 
               {selectedCase && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs theme-text-muted">
                   Successful analysis is saved to this case automatically.
                 </p>
               )}
@@ -1104,19 +1102,19 @@ export default function ServerLogAnalysis() {
 
             {/* FEATURE INPUTS */}
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#292b2e] p-4 sm:p-5">
+            <div className="theme-card-secondary rounded-xl p-4 sm:p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-100">
+                  <h3 className="text-sm font-semibold theme-text">
                     Event-count values
                   </h3>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs theme-text-muted">
                     All 29 model input features are required.
                   </p>
                 </div>
 
-                <span className="rounded-full border border-blue-400/15 bg-blue-500/[0.08] px-2.5 py-1 text-[11px] font-medium text-blue-200">
+                <span className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-medium text-purple-700 dark:border-purple-400/[0.15] dark:bg-purple-500/[0.07] dark:text-purple-200">
                   {completedFeatures} / 29 complete
                 </span>
               </div>
@@ -1129,12 +1127,12 @@ export default function ServerLogAnalysis() {
 
           {/* ACTION BUTTONS */}
 
-          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
+          <div className="mt-6 flex flex-col-reverse gap-3 theme-divider border-t pt-5 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={resetAnalysis}
               disabled={isAnalyzing}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+              className="theme-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition theme-hover disabled:opacity-50 sm:py-2.5"
             >
               <RotateCcw size={15} />
               Reset
@@ -1149,7 +1147,7 @@ export default function ServerLogAnalysis() {
                 !caseId ||
                 completedFeatures !== 29
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             >
               {isAnalyzing ? (
                 <LoaderCircle size={16} className="animate-spin" />
@@ -1168,19 +1166,19 @@ export default function ServerLogAnalysis() {
 
         <aside className="space-y-4">
 
-          <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.055] p-5 sm:p-6">
+          <div className="rounded-2xl border border-purple-200 bg-purple-50 p-5 dark:border-purple-400/[0.15] dark:bg-purple-500/[0.045] sm:p-6">
             <div className="flex items-start gap-3">
               <Activity
                 size={19}
-                className="mt-0.5 shrink-0 text-blue-300"
+                className="mt-0.5 shrink-0 text-purple-600 dark:text-purple-300"
               />
 
               <div>
-                <h2 className="text-sm font-semibold text-blue-100">
+                <h2 className="text-sm font-semibold text-purple-800 dark:text-purple-100">
                   Feature-based input
                 </h2>
 
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                <p className="mt-2 text-xs leading-relaxed theme-text-secondary">
                   The model expects numerical HDFS block-level event
                   occurrence features. Manual input sends one block
                   for prediction.
@@ -1189,19 +1187,19 @@ export default function ServerLogAnalysis() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-amber-400/15 bg-amber-400/[0.045] p-5 sm:p-6">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-400/[0.15] dark:bg-amber-400/[0.04] sm:p-6">
             <div className="flex items-start gap-3">
               <ShieldAlert
                 size={19}
-                className="mt-0.5 shrink-0 text-amber-300"
+                className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-300"
               />
 
               <div>
-                <h2 className="text-sm font-semibold text-amber-100">
+                <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-100">
                   AI-assisted assessment
                 </h2>
 
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                <p className="mt-2 text-xs leading-relaxed theme-text-secondary">
                   An anomaly prediction is not definitive proof of an
                   intrusion. Treat model output as decision support.
                   Independent evaluation is required for real-world use.
@@ -1210,19 +1208,19 @@ export default function ServerLogAnalysis() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+          <div className="theme-card p-5 sm:p-6">
             <div className="flex items-center gap-2">
               <BadgeCheck
                 size={17}
-                className="text-emerald-300"
+                className="text-emerald-600 dark:text-emerald-300"
               />
 
-              <h2 className="text-sm font-semibold text-white">
+              <h2 className="text-sm font-semibold theme-text">
                 Automatically saved finding
               </h2>
             </div>
 
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+            <p className="mt-2 text-xs leading-relaxed theme-text-secondary">
               Successful case-linked analysis is automatically saved
               to the selected case and returns a finding ID.
             </p>
@@ -1235,15 +1233,15 @@ export default function ServerLogAnalysis() {
       {result && (
         <section
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+          className="theme-card overflow-hidden"
         >
-          <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div className="flex flex-col gap-4 theme-divider border-b p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-600 dark:text-purple-400">
                 Manual Analysis Result
               </p>
 
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+              <h2 className="mt-1.5 text-lg font-semibold theme-text">
                 {result.module}
               </h2>
             </div>
@@ -1257,86 +1255,86 @@ export default function ServerLogAnalysis() {
 
           <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Prediction
               </p>
 
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="mt-2 text-lg font-semibold theme-text">
                 {result.prediction}
               </p>
 
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs theme-text-secondary">
                 Classification: {result.class}
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Confidence
               </p>
 
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="mt-2 text-lg font-semibold theme-text">
                 {formatProbability(result.confidence)}
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Anomaly probability
               </p>
 
-              <p className="mt-2 text-lg font-semibold text-red-200">
+              <p className="mt-2 text-lg font-semibold text-red-700 dark:text-red-300">
                 {formatProbability(result.anomaly_probability)}
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Normal probability
               </p>
 
-              <p className="mt-2 text-lg font-semibold text-emerald-200">
+              <p className="mt-2 text-lg font-semibold text-emerald-700 dark:text-emerald-300">
                 {formatProbability(result.normal_probability)}
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Decision threshold
               </p>
 
-              <p className="mt-2 text-lg font-semibold text-slate-100">
+              <p className="mt-2 text-lg font-semibold theme-text">
                 {formatProbability(result.threshold)}
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Model and dataset
               </p>
 
-              <p className="mt-2 text-sm font-medium text-slate-100">
+              <p className="mt-2 text-sm font-medium theme-text">
                 {result.model}
               </p>
 
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs theme-text-muted">
                 {result.dataset} · {result.input_features} features
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2 lg:col-span-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-400/[0.15] dark:bg-emerald-400/[0.035] sm:col-span-2 lg:col-span-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/70">
                   Finding saved to case #{result.case_id}
                 </p>
 
-                <p className="mt-1 text-sm font-medium text-emerald-200">
+                <p className="mt-1 text-sm font-medium text-emerald-800 dark:text-emerald-200">
                   {result.message}
                 </p>
               </div>
 
-              <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+              <span className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 font-mono text-xs text-emerald-800 dark:border-emerald-300/[0.15] dark:bg-black/10 dark:text-emerald-200">
                 Finding #{result.finding_id}
               </span>
             </div>

@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import {
@@ -25,13 +26,10 @@ function getApiErrorMessage(error: unknown): string {
     }
 
     const data: unknown = error.response.data
-    if (
-      typeof data === 'object' &&
-      data !== null &&
-      'detail' in data
-    ) {
+    if (typeof data === 'object' && data !== null && 'detail' in data) {
       const { detail } = data
       if (typeof detail === 'string') return detail
+
       if (Array.isArray(detail)) {
         const messages = detail
           .map((item: unknown) => {
@@ -46,6 +44,7 @@ function getApiErrorMessage(error: unknown): string {
             return null
           })
           .filter((message): message is string => message !== null)
+
         if (messages.length) return messages.join(' ')
       }
     }
@@ -82,16 +81,17 @@ function formatDate(value: string): string {
 
 function CaseStatus({ status }: { status: string }) {
   const normalized = status.toUpperCase()
+
   const appearance =
     normalized === 'OPEN'
-      ? 'border-blue-400/20 bg-blue-400/10 text-blue-300'
+      ? 'border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300'
       : normalized === 'CLOSED'
-        ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
-        : 'border-white/10 bg-white/[0.04] text-slate-300'
+        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+        : 'border-[var(--border-color)] bg-[var(--bg-card-hover)] theme-text-muted'
 
   return (
     <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${appearance}`}
+      className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${appearance}`}
     >
       {status}
     </span>
@@ -100,12 +100,12 @@ function CaseStatus({ status }: { status: string }) {
 
 function CaseTableSkeleton() {
   return (
-    <div className="space-y-3 p-5" aria-label="Loading cases">
+    <div className="space-y-3 p-4" aria-label="Loading cases">
       {Array.from({ length: 5 }, (_, index) => (
         <div
           key={index}
           aria-hidden="true"
-          className="h-14 animate-pulse rounded-xl bg-white/[0.04]"
+          className="h-12 animate-pulse rounded-lg bg-[var(--bg-card-hover)]"
         />
       ))}
     </div>
@@ -130,6 +130,7 @@ function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
     setErrorMessage('')
 
     const trimmedTitle = title.trim()
+
     if (!trimmedTitle) {
       setErrorMessage('Enter a case title.')
       return
@@ -149,6 +150,7 @@ function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
 
     submissionLock.current = true
     setIsSubmitting(true)
+
     try {
       await onCreated({
         title: trimmedTitle,
@@ -164,7 +166,7 @@ function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isSubmitting) onClose()
       }}
@@ -173,50 +175,45 @@ function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-case-title"
-        className="w-full max-w-lg rounded-2xl border border-white/[0.1] bg-[#303236] p-5 shadow-2xl shadow-black/50 sm:p-7"
+        className="theme-card w-full max-w-md p-5 shadow-2xl sm:p-6"
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-400">
-              Case management
-            </p>
-            <h2
-              id="create-case-title"
-              className="mt-2 text-xl font-semibold text-white"
-            >
-              Create a case
+            <h2 id="create-case-title" className="text-base font-semibold theme-text">
+              Create case
             </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Add a case to your investigation workspace.
+            <p className="mt-1 text-xs theme-text-muted">
+              New investigation
             </p>
           </div>
+
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
             aria-label="Close dialog"
-            className="rounded-lg p-2 text-slate-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+            className="rounded-lg p-2 theme-text-muted theme-hover hover:theme-text disabled:opacity-50"
           >
-            <X size={18} aria-hidden="true" />
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {errorMessage && (
             <p
               role="alert"
-              className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+              className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-xs text-red-600 dark:text-red-300"
             >
               {errorMessage}
             </p>
           )}
 
-          <div className="space-y-2">
+          <div>
             <label
               htmlFor="case-title"
-              className="block text-sm font-medium text-slate-200"
+              className="mb-1.5 block text-xs font-medium theme-text-secondary"
             >
-              Case title <span className="text-red-300">*</span>
+              Case title <span className="text-red-500">*</span>
             </label>
             <input
               id="case-title"
@@ -227,20 +224,20 @@ function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
               maxLength={200}
               required
               autoFocus
-              placeholder="Enter a descriptive title"
-              className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              placeholder="Enter case title"
+              className="theme-input w-full rounded-lg px-3.5 py-2.5 text-sm outline-none placeholder:text-[var(--text-muted)] focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10"
             />
-            <p className="text-right text-[11px] text-slate-600">
+            <p className="mt-1 text-right text-[10px] theme-text-muted">
               {title.length}/200
             </p>
           </div>
 
-          <div className="space-y-2">
+          <div>
             <label
               htmlFor="case-description"
-              className="block text-sm font-medium text-slate-200"
+              className="mb-1.5 block text-xs font-medium theme-text-secondary"
             >
-              Description <span className="text-slate-500">(optional)</span>
+              Description <span className="theme-text-muted">(optional)</span>
             </label>
             <textarea
               id="case-description"
@@ -249,34 +246,35 @@ function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
               onChange={(event) => setDescription(event.target.value)}
               maxLength={2000}
               rows={4}
-              placeholder="Add relevant investigation details"
-              className="w-full resize-y rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              placeholder="Investigation details"
+              className="theme-input w-full resize-y rounded-lg px-3.5 py-2.5 text-sm outline-none placeholder:text-[var(--text-muted)] focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10"
             />
-            <p className="text-right text-[11px] text-slate-600">
+            <p className="mt-1 text-right text-[10px] theme-text-muted">
               {description.length}/2000
             </p>
           </div>
 
-          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+              className="theme-button rounded-lg px-4 py-2.5 text-sm theme-text-secondary hover:opacity-80 disabled:opacity-50"
             >
               Cancel
             </button>
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? (
-                <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+                <LoaderCircle size={15} className="animate-spin" />
               ) : (
-                <Plus size={16} aria-hidden="true" />
+                <Plus size={15} />
               )}
-              {isSubmitting ? 'Creating case…' : 'Create case'}
+              {isSubmitting ? 'Creating…' : 'Create case'}
             </button>
           </div>
         </form>
@@ -325,13 +323,12 @@ export default function Cases() {
     return cases.filter((caseItem) => {
       const matchesStatus =
         statusFilter === 'ALL' || caseItem.status === statusFilter
+
       const matchesSearch =
         !query ||
-        [
-          caseItem.case_number,
-          caseItem.title,
-          caseItem.description,
-        ].some((value) => value?.toLowerCase().includes(query))
+        [caseItem.case_number, caseItem.title, caseItem.description].some(
+          (value) => value?.toLowerCase().includes(query),
+        )
 
       return matchesStatus && matchesSearch
     })
@@ -360,93 +357,87 @@ export default function Cases() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mx-auto max-w-7xl space-y-5 theme-text">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-purple-500 dark:text-purple-400">
             Investigation
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-            Cases Management
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight theme-text">
+            Cases
           </h1>
-          <p className="mt-1.5 text-sm text-slate-400">
-            Track and organize the cases assigned to your investigations.
-          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+
+        <div className="flex items-center gap-2">
           {!isLoading && !errorMessage && (
-            <span className="rounded-xl border border-white/[0.08] bg-[#303236] px-3.5 py-2.5 text-sm text-slate-300">
-              <span className="font-semibold text-white">{cases.length}</span>{' '}
-              {cases.length === 1 ? 'case' : 'cases'}
+            <span className="theme-card-secondary rounded-lg px-3 py-2 text-xs theme-text-secondary">
+              <span className="font-semibold theme-text">{cases.length}</span> total
             </span>
           )}
+
           <button
             type="button"
             onClick={refreshCases}
             disabled={isLoading}
             aria-label="Refresh cases"
             title="Refresh cases"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.1] bg-[#303236] px-3.5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-[#383a3f] hover:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="theme-button inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium theme-text-secondary hover:opacity-80 disabled:opacity-50"
           >
-            <RefreshCw
-              size={16}
-              className={isLoading ? 'animate-spin' : ''}
-              aria-hidden="true"
-            />
+            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
+
           <button
             type="button"
             onClick={() => {
               setSuccessMessage('')
               setIsCreateModalOpen(true)
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-purple-700"
           >
-            <FilePlus2 size={17} aria-hidden="true" />
-            Create Case
+            <FilePlus2 size={15} />
+            New case
           </button>
         </div>
       </div>
 
+      {/* Success message */}
       {successMessage && (
         <p
           role="status"
-          className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300"
+          className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5 text-xs text-emerald-600 dark:text-emerald-300"
         >
           {successMessage}
         </p>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]">
-        <div className="flex flex-col gap-3 border-b border-white/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      {/* Cases panel */}
+      <div className="theme-card overflow-hidden">
+        {/* Search and filters */}
+        <div className="flex flex-col gap-3 border-b border-[var(--border-color)] p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-sm">
             <Search
-              size={17}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-              aria-hidden="true"
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted"
             />
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search cases"
+              placeholder="Search cases…"
               aria-label="Search cases"
-              className="w-full rounded-xl border border-white/[0.08] bg-[#242629] py-2.5 pl-10 pr-4 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 hover:border-white/15 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              className="theme-input w-full rounded-lg py-2 pl-9 pr-3 text-xs outline-none placeholder:text-[var(--text-muted)] focus:border-purple-500"
             />
           </div>
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="case-status-filter"
-              className="shrink-0 text-xs font-medium text-slate-500"
-            >
-              Status
-            </label>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] theme-text-muted">Status</span>
             <select
               id="case-status-filter"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="min-w-32 rounded-xl border border-white/[0.08] bg-[#242629] px-3 py-2.5 text-sm text-slate-200 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              className="theme-input min-w-32 rounded-lg px-3 py-2 text-xs outline-none focus:border-purple-500"
             >
               <option value="ALL">All statuses</option>
               {statuses.map((status) => (
@@ -458,21 +449,22 @@ export default function Cases() {
           </div>
         </div>
 
+        {/* Error state */}
         {errorMessage ? (
-          <div className="flex flex-col items-center px-5 py-14 text-center">
-            <span className="flex size-11 items-center justify-center rounded-xl border border-amber-400/15 bg-amber-400/10 text-amber-300">
-              <AlertCircle size={20} aria-hidden="true" />
+          <div className="flex flex-col items-center px-5 py-12 text-center">
+            <span className="flex size-10 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-300">
+              <AlertCircle size={18} />
             </span>
-            <p className="mt-3 text-sm font-medium text-slate-200">
+            <p className="mt-3 text-sm font-medium theme-text">
               Could not load cases
             </p>
-            <p role="alert" className="mt-1 max-w-md text-sm text-slate-400">
+            <p role="alert" className="mt-1 max-w-md text-xs theme-text-secondary">
               {errorMessage}
             </p>
             <button
               type="button"
               onClick={retryLoading}
-              className="mt-4 rounded-lg border border-white/10 px-3.5 py-2 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.04]"
+              className="theme-button mt-4 rounded-lg px-3 py-2 text-xs theme-text-secondary hover:opacity-80"
             >
               Try again
             </button>
@@ -480,87 +472,72 @@ export default function Cases() {
         ) : isLoading ? (
           <CaseTableSkeleton />
         ) : cases.length === 0 ? (
-          <div className="flex flex-col items-center px-5 py-14 text-center">
-            <span className="flex size-12 items-center justify-center rounded-2xl border border-blue-400/15 bg-blue-500/10 text-blue-400">
-              <FolderOpen size={22} aria-hidden="true" />
+          /* Empty state */
+          <div className="flex flex-col items-center px-5 py-12 text-center">
+            <span className="flex size-11 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/5 text-purple-500 dark:text-purple-400">
+              <FolderOpen size={20} />
             </span>
-            <h2 className="mt-4 text-sm font-semibold text-slate-200">
+            <h2 className="mt-3 text-sm font-semibold theme-text">
               No cases yet
             </h2>
-            <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
-              Create your first case to start organizing an investigation.
-            </p>
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-400"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-purple-700"
             >
-              <Plus size={16} aria-hidden="true" />
-              Create your first case
+              <Plus size={15} />
+              Create first case
             </button>
           </div>
         ) : filteredCases.length === 0 ? (
-          <div className="flex flex-col items-center px-5 py-14 text-center">
-            <span className="flex size-11 items-center justify-center rounded-xl bg-white/[0.04] text-slate-500">
-              <Search size={19} aria-hidden="true" />
-            </span>
-            <p className="mt-3 text-sm font-medium text-slate-300">
+          /* No search results */
+          <div className="flex flex-col items-center px-5 py-12 text-center">
+            <Search size={20} className="theme-text-muted" />
+            <p className="mt-3 text-sm font-medium theme-text-secondary">
               No matching cases
             </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Try changing your search or status filter.
+            <p className="mt-1 text-xs theme-text-muted">
+              Change your search or filter.
             </p>
           </div>
         ) : (
           <>
+            {/* Desktop table */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-left">
+              <table className="theme-table w-full min-w-[780px] text-left">
                 <thead>
-                  <tr className="border-b border-white/[0.06] text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    <th scope="col" className="px-5 py-3 sm:px-6">
-                      Case number
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Case title
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Description
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Status
-                    </th>
-                    <th scope="col" className="px-5 py-3 sm:px-6">
-                      Created
-                    </th>
+                  <tr className="theme-table-header border-b text-[10px] font-medium uppercase tracking-wider">
+                    <th className="px-5 py-3">Case number</th>
+                    <th className="px-4 py-3">Title</th>
+                    <th className="px-4 py-3">Description</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-5 py-3">Created</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.05]">
+
+                <tbody className="divide-y divide-[var(--border-color)]">
                   {filteredCases.map((caseItem) => (
                     <tr
                       key={caseItem.id}
-                      className="transition hover:bg-white/[0.025]"
+                      className="transition theme-hover"
                     >
-                      <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-medium text-blue-300 sm:px-6">
+                      <td className="whitespace-nowrap px-5 py-3.5 font-mono text-xs text-purple-500 dark:text-purple-400">
                         {caseItem.case_number}
                       </td>
-                      <td className="max-w-64 px-4 py-4 text-sm font-medium text-slate-200">
+                      <td className="max-w-64 px-4 py-3.5 text-sm font-medium theme-text">
                         <span className="block truncate">{caseItem.title}</span>
                       </td>
-                      <td className="max-w-80 px-4 py-4 text-sm text-slate-400">
+                      <td className="max-w-72 px-4 py-3.5 text-xs theme-text-secondary">
                         <span className="block truncate">
                           {caseItem.description || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-3.5">
                         <CaseStatus status={caseItem.status} />
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-400 sm:px-6">
-                        <span className="inline-flex items-center gap-2">
-                          <CalendarDays
-                            size={14}
-                            className="text-slate-600"
-                            aria-hidden="true"
-                          />
+                      <td className="whitespace-nowrap px-5 py-3.5 text-xs theme-text-secondary">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays size={13} className="theme-text-muted" />
                           {formatDate(caseItem.created_at)}
                         </span>
                       </td>
@@ -569,14 +546,16 @@ export default function Cases() {
                 </tbody>
               </table>
             </div>
-            <div className="border-t border-white/[0.06] px-5 py-3 text-xs text-slate-500 sm:px-6">
-              Showing {filteredCases.length} of {cases.length}{' '}
-              {cases.length === 1 ? 'case' : 'cases'}
+
+            {/* Footer */}
+            <div className="border-t border-[var(--border-color)] px-4 py-3 text-[11px] theme-text-muted">
+              Showing {filteredCases.length} of {cases.length} cases
             </div>
           </>
         )}
       </div>
 
+      {/* Create modal */}
       {isCreateModalOpen && (
         <CreateCaseModal
           onClose={() => setIsCreateModalOpen(false)}

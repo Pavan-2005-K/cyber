@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 
 import { getCases, type Case } from '../../services/caseService'
-
 import {
   analyzeFakeProfile,
   analyzeFakeProfileCsv,
@@ -73,11 +72,17 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
           return `${detail.message}${row}${errorMessage}`
         }
 
-        if ('missing_columns' in detail && Array.isArray(detail.missing_columns)) {
+        if (
+          'missing_columns' in detail &&
+          Array.isArray(detail.missing_columns)
+        ) {
           return `Missing CSV columns: ${detail.missing_columns.join(', ')}`
         }
 
-        if ('unexpected_columns' in detail && Array.isArray(detail.unexpected_columns)) {
+        if (
+          'unexpected_columns' in detail &&
+          Array.isArray(detail.unexpected_columns)
+        ) {
           return `Unexpected CSV columns: ${detail.unexpected_columns.join(', ')}`
         }
       }
@@ -138,13 +143,13 @@ function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
-      return 'border-red-400/20 bg-red-400/10 text-red-300'
+      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300'
 
     case 'MEDIUM':
-      return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
 
     default:
-      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+      return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
   }
 }
 
@@ -177,7 +182,7 @@ function NumberField({
     <div className="space-y-2">
       <label
         htmlFor={id}
-        className="block text-sm font-medium text-slate-200"
+        className="block text-sm font-medium text-[var(--text-primary)]"
       >
         {label}
       </label>
@@ -193,7 +198,7 @@ function NumberField({
           onChange(Number.isNaN(nextValue) ? 0 : nextValue)
         }}
         disabled={disabled}
-        className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+        className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
       />
     </div>
   )
@@ -221,14 +226,13 @@ function ToggleField({
   return (
     <label
       htmlFor={id}
-      className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-white/[0.07] bg-[#242629] p-4 transition hover:border-white/15"
+      className="theme-card-secondary flex cursor-pointer items-start justify-between gap-4 p-4 transition hover:border-[var(--accent)]"
     >
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-slate-200">
+        <span className="block text-sm font-medium text-[var(--text-primary)]">
           {label}
         </span>
-
-        <span className="mt-1 block text-xs text-slate-500">
+        <span className="mt-1 block text-xs text-[var(--text-secondary)]">
           {description}
         </span>
       </span>
@@ -242,9 +246,7 @@ function ToggleField({
           onChange={(event) => onChange(event.target.checked)}
           className="peer sr-only"
         />
-
-        <span className="h-6 w-11 rounded-full bg-slate-700 transition peer-checked:bg-blue-500 peer-focus-visible:ring-4 peer-focus-visible:ring-blue-400/30 peer-disabled:opacity-50" />
-
+        <span className="h-6 w-11 rounded-full bg-slate-400 transition peer-checked:bg-[#9b82e8] peer-focus-visible:ring-4 peer-focus-visible:ring-[#9b82e8]/30 peer-disabled:opacity-50 dark:bg-slate-700" />
         <span className="pointer-events-none absolute left-1 top-1 size-4 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
       </span>
     </label>
@@ -265,15 +267,13 @@ function SummaryCard({
   description?: string
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-
-      <p className="mt-2 break-words text-2xl font-semibold text-white">
+    <div className="theme-card-secondary p-4">
+      <p className="text-xs font-medium text-[var(--text-muted)]">{label}</p>
+      <p className="mt-2 break-words text-2xl font-semibold text-[var(--text-primary)]">
         {value}
       </p>
-
       {description && (
-        <p className="mt-1 text-xs text-slate-500">{description}</p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">{description}</p>
       )}
     </div>
   )
@@ -284,26 +284,18 @@ function SummaryCard({
 // =========================================================
 
 export default function FakeProfile() {
-  // Case state
   const [cases, setCases] = useState<Case[]>([])
   const [caseId, setCaseId] = useState('')
 
-  // Manual analysis state
-  const [profile, setProfile] =
-    useState<FakeProfileRequest>(EMPTY_PROFILE)
+  const [profile, setProfile] = useState<FakeProfileRequest>(EMPTY_PROFILE)
+  const [result, setResult] = useState<FakeProfileResponse | null>(null)
 
-  const [result, setResult] =
-    useState<FakeProfileResponse | null>(null)
-
-  // CSV batch state
   const [csvFile, setCsvFile] = useState<File | null>(null)
-
   const [batchResult, setBatchResult] =
     useState<FakeProfileBatchResponse | null>(null)
 
   const [isUploading, setIsUploading] = useState(false)
 
-  // General state
   const [casesError, setCasesError] = useState('')
   const [analysisError, setAnalysisError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -311,15 +303,13 @@ export default function FakeProfile() {
   const [isLoadingCases, setIsLoadingCases] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-  // Prevent duplicate submissions
   const submissionLock = useRef(false)
   const csvSubmissionLock = useRef(false)
-
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // -------------------------------------------------------
-  // Load investigation cases
-  // -------------------------------------------------------
+  // =========================================================
+  // LOAD INVESTIGATION CASES
+  // =========================================================
 
   useEffect(() => {
     let active = true
@@ -327,7 +317,6 @@ export default function FakeProfile() {
     getCases()
       .then((data) => {
         if (!active) return
-
         setCases(data)
         setCaseId(data[0] ? String(data[0].id) : '')
       })
@@ -347,9 +336,9 @@ export default function FakeProfile() {
     }
   }, [])
 
-  // -------------------------------------------------------
-  // Clear previous results
-  // -------------------------------------------------------
+  // =========================================================
+  // CLEAR PREVIOUS RESULTS
+  // =========================================================
 
   function clearResults() {
     setResult(null)
@@ -358,9 +347,9 @@ export default function FakeProfile() {
     setSuccessMessage('')
   }
 
-  // -------------------------------------------------------
-  // Update manual profile
-  // -------------------------------------------------------
+  // =========================================================
+  // UPDATE MANUAL PROFILE
+  // =========================================================
 
   function updateProfile<K extends keyof FakeProfileRequest>(
     key: K,
@@ -370,13 +359,12 @@ export default function FakeProfile() {
       ...current,
       [key]: value,
     }))
-
     clearResults()
   }
 
-  // -------------------------------------------------------
-  // Manual profile analysis
-  // -------------------------------------------------------
+  // =========================================================
+  // MANUAL PROFILE ANALYSIS
+  // =========================================================
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -408,16 +396,12 @@ export default function FakeProfile() {
     }
 
     if (profile.description.length > 5000) {
-      setAnalysisError(
-        'Profile description cannot exceed 5,000 characters.',
-      )
+      setAnalysisError('Profile description cannot exceed 5,000 characters.')
       return
     }
 
     if (profile.external_url.length > 2048) {
-      setAnalysisError(
-        'External URL cannot exceed 2,048 characters.',
-      )
+      setAnalysisError('External URL cannot exceed 2,048 characters.')
       return
     }
 
@@ -444,11 +428,7 @@ export default function FakeProfile() {
     setIsAnalyzing(true)
 
     try {
-      const analysis = await analyzeFakeProfile(
-        Number(caseId),
-        requestData,
-      )
-
+      const analysis = await analyzeFakeProfile(Number(caseId), requestData)
       setResult(analysis)
       setSuccessMessage(analysis.message)
     } catch (error) {
@@ -464,9 +444,9 @@ export default function FakeProfile() {
     }
   }
 
-  // -------------------------------------------------------
-  // CSV file selection
-  // -------------------------------------------------------
+  // =========================================================
+  // CSV FILE SELECTION
+  // =========================================================
 
   function handleCsvChange(event: ChangeEvent<HTMLInputElement>) {
     const selectedFile = event.target.files?.[0] ?? null
@@ -500,9 +480,9 @@ export default function FakeProfile() {
     setCsvFile(selectedFile)
   }
 
-  // -------------------------------------------------------
-  // CSV batch analysis
-  // -------------------------------------------------------
+  // =========================================================
+  // CSV BATCH ANALYSIS
+  // =========================================================
 
   async function handleCsvSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -525,11 +505,7 @@ export default function FakeProfile() {
     setIsUploading(true)
 
     try {
-      const analysis = await analyzeFakeProfileCsv(
-        Number(caseId),
-        csvFile,
-      )
-
+      const analysis = await analyzeFakeProfileCsv(Number(caseId), csvFile)
       setBatchResult(analysis)
       setSuccessMessage(analysis.message)
     } catch (error) {
@@ -545,9 +521,9 @@ export default function FakeProfile() {
     }
   }
 
-  // -------------------------------------------------------
-  // Reset manual and CSV analysis
-  // -------------------------------------------------------
+  // =========================================================
+  // RESET ANALYSIS
+  // =========================================================
 
   function resetAnalysis() {
     setProfile(EMPTY_PROFILE)
@@ -560,9 +536,9 @@ export default function FakeProfile() {
     clearResults()
   }
 
-  // -------------------------------------------------------
-  // Retry loading cases
-  // -------------------------------------------------------
+  // =========================================================
+  // RETRY LOADING CASES
+  // =========================================================
 
   function retryCases() {
     setIsLoadingCases(true)
@@ -571,7 +547,6 @@ export default function FakeProfile() {
     getCases()
       .then((data) => {
         setCases(data)
-
         setCaseId((current) =>
           data.some((caseItem) => String(caseItem.id) === current)
             ? current
@@ -588,9 +563,9 @@ export default function FakeProfile() {
       .finally(() => setIsLoadingCases(false))
   }
 
-  // -------------------------------------------------------
-  // Text field change
-  // -------------------------------------------------------
+  // =========================================================
+  // TEXT FIELD CHANGE
+  // =========================================================
 
   function handleTextChange(
     key: 'username' | 'fullname' | 'description' | 'external_url',
@@ -603,38 +578,35 @@ export default function FakeProfile() {
     (caseItem) => String(caseItem.id) === caseId,
   )
 
-  // =======================================================
+  // =========================================================
   // UI
-  // =======================================================
+  // =========================================================
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
-
+    <section className="mx-auto max-w-6xl space-y-6 theme-text">
       {/* HEADER */}
-
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7954c8] dark:text-[#b6a1f5]">
           AI Analysis
         </p>
 
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-3xl">
           Fake Profile Detection
         </h1>
 
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
-          Analyze social media profiles individually or in batches
-          using the CyberFusion detection model.
+        <p className="mt-1.5 max-w-2xl text-sm text-[var(--text-secondary)]">
+          Analyze social media profiles individually or in batches using the
+          CyberFusion detection model.
         </p>
       </header>
 
       {/* CASE LOADING ERROR */}
-
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-2xl border border-red-400/30 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="flex items-center gap-2 text-sm text-red-300">
+          <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-300">
             <AlertCircle size={17} aria-hidden="true" />
             {casesError}
           </p>
@@ -642,7 +614,7 @@ export default function FakeProfile() {
           <button
             type="button"
             onClick={retryCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 sm:self-auto"
+            className="self-start rounded-lg border border-red-400/30 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-400/10 dark:text-red-200 sm:self-auto"
           >
             Retry
           </button>
@@ -650,87 +622,72 @@ export default function FakeProfile() {
       )}
 
       {/* ANALYSIS ERROR */}
-
       {analysisError && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-300"
         >
-          <AlertCircle
-            size={17}
-            className="mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
+          <AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>{analysisError}</span>
         </p>
       )}
 
       {/* SUCCESS MESSAGE */}
-
       {successMessage && (result || batchResult) && (
         <p
           role="status"
-          className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-4 py-3 text-sm text-emerald-300"
+          className="flex items-start gap-2 rounded-xl border border-[#39b99b]/30 bg-[#39b99b]/[0.07] px-4 py-3 text-sm text-emerald-700 dark:text-[#39b99b]"
         >
-          <BadgeCheck
-            size={17}
-            className="mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
+          <BadgeCheck size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>{successMessage}</span>
         </p>
       )}
 
-      {/* =================================================
+      {/* =====================================================
           CSV BATCH UPLOAD
-      ================================================= */}
+      ====================================================== */}
 
-      <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7">
-
+      <div className="theme-card p-5 sm:p-7">
         <div className="flex items-start gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-400/20 bg-purple-500/10 text-purple-300">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
             <FileSpreadsheet size={21} aria-hidden="true" />
           </span>
 
           <div>
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">
               CSV Batch Analysis
             </h2>
-
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
-              Upload a CSV containing multiple social media profiles
-              to analyze them together.
+            <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
+              Upload a CSV containing multiple social media profiles to analyze them
+              together.
             </p>
           </div>
         </div>
 
         <form onSubmit={handleCsvSubmit} className="mt-6 space-y-4">
-
           {/* FILE INPUT */}
-
           <div>
             <label
               htmlFor="fake-profile-csv"
-              className="mb-2 block text-sm font-medium text-slate-200"
+              className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
             >
               Upload profile CSV
             </label>
 
-            <div className="rounded-xl border border-dashed border-white/15 bg-[#242629] p-5 transition hover:border-blue-400/40">
-
+            <div className="rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--bg-input)] p-5 transition hover:border-[#9b82e8]/50">
               <label
                 htmlFor="fake-profile-csv"
                 className="flex cursor-pointer flex-col items-center justify-center gap-3 text-center"
               >
-                <span className="flex size-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
+                <span className="flex size-12 items-center justify-center rounded-xl bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
                   <UploadCloud size={24} aria-hidden="true" />
                 </span>
 
-                <span className="text-sm font-medium text-slate-200">
+                <span className="text-sm font-medium text-[var(--text-primary)]">
                   Click to select a CSV file
                 </span>
 
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-[var(--text-muted)]">
                   CSV format only · Maximum file size 5 MB
                 </span>
               </label>
@@ -748,23 +705,20 @@ export default function FakeProfile() {
           </div>
 
           {/* SELECTED FILE */}
-
           {csvFile && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-400/15 bg-blue-500/[0.06] p-3">
-
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/[0.06] p-3">
               <div className="flex min-w-0 items-center gap-3">
                 <FileSpreadsheet
                   size={20}
-                  className="shrink-0 text-blue-300"
+                  className="shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
                   aria-hidden="true"
                 />
 
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-200">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                     {csvFile.name}
                   </p>
-
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-[var(--text-muted)]">
                     {(csvFile.size / 1024).toFixed(2)} KB
                   </p>
                 </div>
@@ -780,20 +734,20 @@ export default function FakeProfile() {
                   }
                 }}
                 disabled={isUploading}
-                className="text-xs font-medium text-red-300 transition hover:text-red-200 disabled:opacity-50"
+                className="text-xs font-medium text-red-600 transition hover:text-red-500 disabled:opacity-50 dark:text-red-300 dark:hover:text-red-200"
               >
                 Remove
               </button>
             </div>
           )}
 
+          {/* CSV BUTTONS */}
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-
             <button
               type="button"
               onClick={resetAnalysis}
               disabled={isUploading || isAnalyzing}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50"
+              className="theme-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-[var(--bg-card-hover)] disabled:opacity-50"
             >
               <RotateCcw size={15} aria-hidden="true" />
               Reset
@@ -808,47 +762,37 @@ export default function FakeProfile() {
                 !caseId ||
                 !csvFile
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-400/30 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b82e8]/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isUploading ? (
-                <LoaderCircle
-                  size={16}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
+                <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
               ) : (
                 <UploadCloud size={16} aria-hidden="true" />
               )}
-
               {isUploading ? 'Analyzing CSV…' : 'Upload & Analyze CSV'}
             </button>
-
           </div>
         </form>
       </div>
 
-      {/* =================================================
+      {/* =====================================================
           CSV BATCH RESULTS
-      ================================================= */}
+      ====================================================== */}
 
       {batchResult && (
         <div
           aria-live="polite"
-          className="space-y-5 rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+          className="theme-card space-y-5 p-5 sm:p-7"
         >
-
           <div className="flex flex-wrap items-start justify-between gap-3">
-
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7954c8] dark:text-[#b6a1f5]">
                 CSV Batch Results
               </p>
-
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+              <h2 className="mt-1.5 text-lg font-semibold text-[var(--text-primary)]">
                 {batchResult.module}
               </h2>
-
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 {batchResult.filename}
               </p>
             </div>
@@ -858,203 +802,155 @@ export default function FakeProfile() {
             >
               {batchResult.severity} severity
             </span>
-
           </div>
 
           {/* SUMMARY CARDS */}
-
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
             <SummaryCard
               label="Total profiles"
               value={batchResult.total_profiles}
             />
-
             <SummaryCard
               label="Fake profiles"
               value={batchResult.fake_profiles}
             />
-
             <SummaryCard
               label="Genuine profiles"
               value={batchResult.genuine_profiles}
             />
-
             <SummaryCard
               label="Fake profile rate"
               value={formatBatchPercentage(batchResult.fake_percentage)}
             />
-
             <SummaryCard
               label="Average confidence"
               value={formatPercentage(batchResult.average_confidence)}
             />
-
-            <SummaryCard
-              label="Model"
-              value={batchResult.model}
-            />
-
+            <SummaryCard label="Model" value={batchResult.model} />
           </div>
 
           {/* SAVED FINDING */}
-
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4">
-
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 Finding successfully saved
               </p>
-
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Case #{batchResult.case_id}
               </p>
             </div>
 
-            <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-sm text-emerald-200">
+            <span className="rounded-lg border border-emerald-500/25 bg-[var(--bg-card)] px-3 py-2 font-mono text-sm text-emerald-700 dark:text-emerald-200">
               Finding #{batchResult.finding_id}
             </span>
-
           </div>
 
           {/* INDIVIDUAL PREDICTIONS TABLE */}
-
           <div>
             <div className="mb-3">
-              <h3 className="text-sm font-semibold text-white">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 Individual Profile Predictions
               </h3>
-
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Predictions for each social media profile in the uploaded CSV.
               </p>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-white/[0.07]">
-
-              <table className="w-full min-w-[850px] text-left text-xs">
-
-                <thead className="bg-[#242629] text-slate-400">
+            <div className="overflow-x-auto rounded-xl border border-[var(--border-color)]">
+              <table className="theme-table w-full min-w-[850px] text-left text-xs">
+                <thead className="theme-table-header">
                   <tr>
                     <th className="px-4 py-3 font-semibold">#</th>
                     <th className="px-4 py-3 font-semibold">Username</th>
                     <th className="px-4 py-3 font-semibold">Prediction</th>
-                    <th className="px-4 py-3 font-semibold">
-                      Fake probability
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      Genuine probability
-                    </th>
-                    <th className="px-4 py-3 font-semibold">
-                      Confidence
-                    </th>
+                    <th className="px-4 py-3 font-semibold">Fake probability</th>
+                    <th className="px-4 py-3 font-semibold">Genuine probability</th>
+                    <th className="px-4 py-3 font-semibold">Confidence</th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-white/[0.06]">
-
+                <tbody className="divide-y divide-[var(--border-color)]">
                   {batchResult.results.map((item) => (
                     <tr
                       key={item.row_number}
-                      className="transition hover:bg-white/[0.025]"
+                      className="transition hover:bg-[var(--bg-card-hover)]"
                     >
-                      <td className="px-4 py-3 text-slate-500">
+                      <td className="px-4 py-3 text-[var(--text-muted)]">
                         {item.row_number}
                       </td>
-
-                      <td className="px-4 py-3 font-medium text-slate-200">
+                      <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                         {item.username}
                       </td>
-
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
                             item.class === 1
-                              ? 'border-red-400/20 bg-red-400/10 text-red-300'
-                              : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                              ? 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300'
+                              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                           }`}
                         >
                           {item.prediction}
                         </span>
                       </td>
-
-                      <td className="px-4 py-3 tabular-nums text-slate-300">
+                      <td className="px-4 py-3 tabular-nums text-[var(--text-secondary)]">
                         {formatPercentage(item.fake_probability)}
                       </td>
-
-                      <td className="px-4 py-3 tabular-nums text-slate-300">
+                      <td className="px-4 py-3 tabular-nums text-[var(--text-secondary)]">
                         {formatPercentage(item.genuine_probability)}
                       </td>
-
-                      <td className="px-4 py-3 tabular-nums font-medium text-white">
+                      <td className="px-4 py-3 tabular-nums font-medium text-[var(--text-primary)]">
                         {formatPercentage(item.confidence)}
                       </td>
                     </tr>
                   ))}
-
                 </tbody>
-
               </table>
-
             </div>
 
-            <p className="mt-2 text-right text-xs text-slate-500">
+            <p className="mt-2 text-right text-xs text-[var(--text-muted)]">
               {batchResult.results.length} records
             </p>
-
           </div>
 
           {/* WARNING */}
-
-          <p className="text-xs leading-relaxed text-slate-400">
-            These are experimental model-based estimates. They do not
-            independently verify account ownership or prove that a profile
-            is fake.
+          <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+            These are experimental model-based estimates. They do not independently
+            verify account ownership or prove that a profile is fake.
           </p>
-
         </div>
       )}
 
-      {/* =================================================
+      {/* =====================================================
           MANUAL FEATURE ANALYSIS
-      ================================================= */}
+      ====================================================== */}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
-
         {/* MANUAL PROFILE FORM */}
-
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+          className="theme-card p-5 sm:p-7"
         >
-
           <div className="flex items-start gap-3">
-
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
               <UserRoundSearch size={21} aria-hidden="true" />
             </span>
 
             <div>
-              <h2 className="text-base font-semibold text-white">
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">
                 Manual Profile Analysis
               </h2>
-
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+              <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
                 Enter one social media profile's details for individual prediction.
               </p>
             </div>
-
           </div>
 
           <div className="mt-6 space-y-5">
-
             {/* CASE SELECTOR */}
-
             <div className="space-y-2">
-
               <label
                 htmlFor="fake-profile-case"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium text-[var(--text-primary)]"
               >
                 Investigation case
               </label>
@@ -1073,9 +969,8 @@ export default function FakeProfile() {
                   isUploading
                 }
                 required
-                className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
               >
-
                 {cases.length === 0 && (
                   <option value="">
                     {isLoadingCases ? 'Loading cases…' : 'No cases available'}
@@ -1087,120 +982,98 @@ export default function FakeProfile() {
                     {caseItem.case_number} — {caseItem.title}
                   </option>
                 ))}
-
               </select>
 
               {selectedCase && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--text-muted)]">
                   The analysis finding will be saved to this case.
                 </p>
               )}
-
             </div>
 
             {/* USERNAME AND FULL NAME */}
-
             <div className="grid gap-5 sm:grid-cols-2">
-
               <div className="space-y-2">
-
                 <label
                   htmlFor="profile-username"
-                  className="block text-sm font-medium text-slate-200"
+                  className="block text-sm font-medium text-[var(--text-primary)]"
                 >
-                  Username <span className="text-red-300">*</span>
+                  Username <span className="text-red-500">*</span>
                 </label>
 
                 <input
                   id="profile-username"
                   value={profile.username}
-                  onChange={(event) =>
-                    handleTextChange('username', event)
-                  }
+                  onChange={(event) => handleTextChange('username', event)}
                   minLength={1}
                   maxLength={100}
                   required
                   disabled={isAnalyzing || isUploading}
                   placeholder="example_user"
-                  className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                  className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
                 />
 
-                <p className="text-right text-[11px] text-slate-600">
+                <p className="text-right text-[11px] text-[var(--text-muted)]">
                   {profile.username.length}/100
                 </p>
-
               </div>
 
               <div className="space-y-2">
-
                 <label
                   htmlFor="profile-fullname"
-                  className="block text-sm font-medium text-slate-200"
+                  className="block text-sm font-medium text-[var(--text-primary)]"
                 >
-                  Full name <span className="text-slate-500">(optional)</span>
+                  Full name <span className="text-[var(--text-muted)]">(optional)</span>
                 </label>
 
                 <input
                   id="profile-fullname"
                   value={profile.fullname}
-                  onChange={(event) =>
-                    handleTextChange('fullname', event)
-                  }
+                  onChange={(event) => handleTextChange('fullname', event)}
                   maxLength={200}
                   disabled={isAnalyzing || isUploading}
                   placeholder="Example User"
-                  className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                  className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
                 />
 
-                <p className="text-right text-[11px] text-slate-600">
+                <p className="text-right text-[11px] text-[var(--text-muted)]">
                   {profile.fullname.length}/200
                 </p>
-
               </div>
-
             </div>
 
             {/* DESCRIPTION */}
-
             <div className="space-y-2">
-
               <label
                 htmlFor="profile-description"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium text-[var(--text-primary)]"
               >
-                Profile description{' '}
-                <span className="text-slate-500">(optional)</span>
+                Profile description <span className="text-[var(--text-muted)]">(optional)</span>
               </label>
 
               <textarea
                 id="profile-description"
                 value={profile.description}
-                onChange={(event) =>
-                  handleTextChange('description', event)
-                }
+                onChange={(event) => handleTextChange('description', event)}
                 maxLength={5000}
                 rows={4}
                 disabled={isAnalyzing || isUploading}
                 placeholder="Enter the profile bio or description"
-                className="w-full resize-y rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full resize-y rounded-xl px-4 py-3 text-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
               />
 
-              <p className="text-right text-[11px] text-slate-600">
+              <p className="text-right text-[11px] text-[var(--text-muted)]">
                 {profile.description.length}/5000
               </p>
-
             </div>
 
             {/* EXTERNAL URL */}
-
             <div className="space-y-2">
-
               <label
                 htmlFor="profile-external-url"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium text-[var(--text-primary)]"
               >
-                External URL{' '}
-                <span className="text-slate-500">(optional)</span>
+                External URL <span className="text-[var(--text-muted)]">(optional)</span>
               </label>
 
               <input
@@ -1208,25 +1081,20 @@ export default function FakeProfile() {
                 type="text"
                 inputMode="url"
                 value={profile.external_url}
-                onChange={(event) =>
-                  handleTextChange('external_url', event)
-                }
+                onChange={(event) => handleTextChange('external_url', event)}
                 maxLength={2048}
                 disabled={isAnalyzing || isUploading}
                 placeholder="https://example.com"
-                className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
               />
 
-              <p className="text-right text-[11px] text-slate-600">
+              <p className="text-right text-[11px] text-[var(--text-muted)]">
                 {profile.external_url.length}/2048
               </p>
-
             </div>
 
             {/* TOGGLES */}
-
             <div className="grid gap-3 sm:grid-cols-2">
-
               <ToggleField
                 id="has_profile_picture"
                 label="Profile picture"
@@ -1244,25 +1112,18 @@ export default function FakeProfile() {
                 description="Is the profile set to private?"
                 checked={profile.is_private}
                 disabled={isAnalyzing || isUploading}
-                onChange={(checked) =>
-                  updateProfile('is_private', checked)
-                }
+                onChange={(checked) => updateProfile('is_private', checked)}
               />
-
             </div>
 
             {/* NUMBER FIELDS */}
-
             <div className="grid gap-4 sm:grid-cols-3">
-
               <NumberField
                 id="posts"
                 label="Posts"
                 value={profile.posts}
                 disabled={isAnalyzing || isUploading}
-                onChange={(value) =>
-                  updateProfile('posts', value)
-                }
+                onChange={(value) => updateProfile('posts', value)}
               />
 
               <NumberField
@@ -1270,9 +1131,7 @@ export default function FakeProfile() {
                 label="Followers"
                 value={profile.followers}
                 disabled={isAnalyzing || isUploading}
-                onChange={(value) =>
-                  updateProfile('followers', value)
-                }
+                onChange={(value) => updateProfile('followers', value)}
               />
 
               <NumberField
@@ -1280,25 +1139,19 @@ export default function FakeProfile() {
                 label="Following"
                 value={profile.following}
                 disabled={isAnalyzing || isUploading}
-                onChange={(value) =>
-                  updateProfile('following', value)
-                }
+                onChange={(value) => updateProfile('following', value)}
               />
-
             </div>
-
           </div>
 
           {/* FORM BUTTONS */}
-
-          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
-
+          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-[var(--border-color)] pt-5 sm:flex-row sm:justify-end">
             {(result || profile.username) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
                 disabled={isAnalyzing || isUploading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+                className="theme-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-[var(--bg-card-hover)] disabled:opacity-50 sm:py-2.5"
               >
                 <RotateCcw size={15} aria-hidden="true" />
                 Reset
@@ -1314,102 +1167,76 @@ export default function FakeProfile() {
                 !caseId ||
                 !profile.username.trim()
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b82e8]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             >
-
               {isAnalyzing ? (
-                <LoaderCircle
-                  size={16}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
+                <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
               ) : (
                 <ScanSearch size={16} aria-hidden="true" />
               )}
-
               {isAnalyzing ? 'Analyzing profile…' : 'Analyze Profile'}
-
             </button>
-
           </div>
-
         </form>
 
-        {/* =================================================
+        {/* =====================================================
             INFORMATION AND MANUAL RESULT
-        ================================================= */}
+        ====================================================== */}
 
         <aside className="space-y-4">
-
           {/* MODEL INFORMATION */}
-
-          <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.055] p-5 sm:p-6">
-
+          <div className="rounded-2xl border border-[#9b82e8]/20 bg-[#9b82e8]/[0.055] p-5 sm:p-6">
             <div className="flex items-start gap-3">
-
               <ShieldAlert
                 size={19}
-                className="mt-0.5 shrink-0 text-blue-300"
+                className="mt-0.5 shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
                 aria-hidden="true"
               />
 
               <div>
-                <h2 className="text-sm font-semibold text-blue-100">
+                <h2 className="text-sm font-semibold text-[#7954c8] dark:text-[#e3d9ff]">
                   Experimental model assessment
                 </h2>
-
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                  The result is a model-based estimate. It does not
-                  verify account ownership or prove that a profile is fake.
-                  Use it as decision support alongside independent investigation.
+                <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                  The result is a model-based estimate. It does not verify account
+                  ownership or prove that a profile is fake. Use it as decision
+                  support alongside independent investigation.
                 </p>
               </div>
-
             </div>
-
           </div>
 
           {/* CASE INFORMATION */}
-
-          <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
-
+          <div className="theme-card p-5 sm:p-6">
             <div className="flex items-center gap-2">
-
               <CircleHelp
                 size={17}
-                className="text-slate-300"
+                className="text-[var(--text-secondary)]"
                 aria-hidden="true"
               />
-
-              <h2 className="text-sm font-semibold text-white">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
                 Case-linked analysis
               </h2>
-
             </div>
 
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
-              Successful analysis automatically saves a detection finding
-              to the selected case. No extra save action is needed.
+            <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+              Successful analysis automatically saves a detection finding to the
+              selected case. No extra save action is needed.
             </p>
-
           </div>
 
           {/* MANUAL RESULT */}
-
           {result && (
             <div
               aria-live="polite"
-              className="space-y-4 rounded-2xl border border-white/[0.08] bg-[#303236] p-5 sm:p-6"
+              className="theme-card space-y-4 p-5 sm:p-6"
             >
-
               <div className="flex flex-wrap items-start justify-between gap-3">
-
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7954c8] dark:text-[#b6a1f5]">
                     Analysis result
                   </p>
-
-                  <h2 className="mt-1.5 text-base font-semibold text-white">
+                  <h2 className="mt-1.5 text-base font-semibold text-[var(--text-primary)]">
                     {result.module}
                   </h2>
                 </div>
@@ -1419,84 +1246,65 @@ export default function FakeProfile() {
                 >
                   {result.severity}
                 </span>
-
               </div>
 
-              <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {/* PREDICTION */}
+              <div className="theme-card-secondary p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   Prediction
                 </p>
-
-                <p className="mt-2 break-words text-lg font-semibold text-white">
+                <p className="mt-2 break-words text-lg font-semibold text-[var(--text-primary)]">
                   {result.prediction}
                 </p>
-
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
                   Classification: {result.class}
                 </p>
-
               </div>
 
-              <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-
+              {/* CONFIDENCE */}
+              <div className="theme-card-secondary p-4">
                 <div className="flex items-baseline justify-between gap-3">
-
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     Confidence
                   </p>
-
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">
                     {formatPercentage(result.confidence)}
                   </p>
-
                 </div>
 
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border-color)]">
                   <div
-                    className="h-full rounded-full bg-blue-400"
+                    className="h-full rounded-full bg-[#9b82e8]"
                     style={{
-                      width: `${Math.min(
-                        100,
-                        Math.max(0, result.confidence * 100),
-                      )}%`,
+                      width: `${Math.min(100, Math.max(0, result.confidence * 100))}%`,
                     }}
                   />
-
                 </div>
-
               </div>
 
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4">
-
+              {/* SAVED FINDING */}
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                     Saved finding
                   </p>
-
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
                     Case #{result.case_id}
                   </p>
                 </div>
 
-                <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+                <span className="rounded-lg border border-emerald-500/25 bg-[var(--bg-card)] px-3 py-2 font-mono text-xs text-emerald-700 dark:text-emerald-200">
                   #{result.finding_id}
                 </span>
-
               </div>
 
-              <p className="text-xs leading-relaxed text-slate-400">
+              <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
                 {result.message}
               </p>
-
             </div>
           )}
-
         </aside>
-
       </div>
-
     </section>
   )
 }

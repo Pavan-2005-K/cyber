@@ -1,0 +1,24 @@
+
+From: Account Security <security@example.invalid>
+To: Test Recipient <recipient@example.invalid>
+Date: Thu, 12 Nov 2026 21:00:00 +0530
+Subject: URGENT: Your Account Will Be Suspended
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Dear Customer,
+
+We have detected suspicious activity on your bank account.
+
+Your account will be permanently suspended within 24 hours unless you verify your information immediately.
+
+Click the link below to restore your account:
+
+http://fake-bank-verification.example.invalid/verify
+
+Please provide your username, password, ATM PIN and OTP to complete the verification process.
+
+Failure to respond immediately may result in permanent account suspension.
+
+Regards,
+Bank Security Department

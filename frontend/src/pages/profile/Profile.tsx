@@ -102,10 +102,14 @@ export default function Profile() {
     return (
       <section
         aria-label="Loading profile"
-        className="mx-auto max-w-4xl rounded-2xl border border-white/[0.08] bg-[#303236] p-8"
+        className="theme-card mx-auto max-w-4xl rounded-2xl p-8"
       >
-        <div className="flex items-center justify-center gap-3 py-12 text-sm text-slate-400">
-          <LoaderCircle className="animate-spin" size={18} aria-hidden="true" />
+        <div className="flex items-center justify-center gap-3 py-12 text-sm theme-text-muted">
+          <LoaderCircle
+            className="animate-spin"
+            size={18}
+            aria-hidden="true"
+          />
           Loading your profile…
         </div>
       </section>
@@ -114,21 +118,27 @@ export default function Profile() {
 
   if (error || !user) {
     return (
-      <section className="mx-auto max-w-4xl rounded-2xl border border-red-400/20 bg-[#303236] p-6 sm:p-8">
+      <section className="mx-auto max-w-4xl rounded-2xl border border-red-500/20 theme-card p-6 sm:p-8">
         <div className="flex flex-col items-center py-8 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-red-400/10 text-red-300">
+          <span className="flex size-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 dark:text-red-300">
             <AlertCircle size={22} aria-hidden="true" />
           </span>
-          <h1 className="mt-4 text-lg font-semibold text-white">
+
+          <h1 className="mt-4 text-lg font-semibold theme-text">
             Profile unavailable
           </h1>
-          <p role="alert" className="mt-2 max-w-md text-sm leading-6 text-slate-400">
+
+          <p
+            role="alert"
+            className="mt-2 max-w-md text-sm leading-6 theme-text-secondary"
+          >
             {error ?? 'Your profile could not be loaded. Please try again.'}
           </p>
+
           <button
             type="button"
             onClick={retryProfileLoad}
-            className="mt-5 inline-flex items-center gap-2 rounded-xl border border-white/[0.1] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+            className="theme-button theme-hover mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/60"
           >
             <RefreshCw size={15} aria-hidden="true" />
             Try again
@@ -141,96 +151,116 @@ export default function Profile() {
   const createdAt = getCreatedAt(user)
 
   return (
-    <section className="mx-auto max-w-4xl space-y-6">
+    <section className="mx-auto max-w-4xl space-y-6 theme-text">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-500 dark:text-purple-400">
           Account
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-text sm:text-3xl">
           Profile
         </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
+
+        <p className="mt-2 text-sm leading-6 theme-text-secondary">
           Your authenticated investigator account information.
         </p>
       </header>
 
-      <div className="rounded-2xl border border-white/[0.08] bg-[#303236] p-5 sm:p-8">
-        <div className="flex flex-col items-center gap-5 border-b border-white/[0.07] pb-7 text-center sm:flex-row sm:text-left">
+      <div className="theme-card rounded-2xl p-5 sm:p-8">
+        <div className="flex flex-col items-center gap-5 border-b theme-divider pb-7 text-center sm:flex-row sm:text-left">
           <div
             aria-label={`${user.username} initials`}
-            className="flex size-20 shrink-0 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10 text-2xl font-semibold text-blue-300"
+            className="flex size-20 shrink-0 items-center justify-center rounded-2xl border border-purple-500/20 bg-purple-500/10 text-2xl font-semibold text-purple-500 dark:text-purple-300"
           >
             {getInitials(user.username)}
           </div>
+
           <div className="min-w-0">
-            <h2 className="break-words text-xl font-semibold text-white">
+            <h2 className="break-words text-xl font-semibold theme-text">
               {user.username}
             </h2>
-            <p className="mt-1 break-all text-sm text-slate-400">{user.email}</p>
+
+            <p className="mt-1 break-all text-sm theme-text-secondary">
+              {user.email}
+            </p>
           </div>
         </div>
 
         <dl className="grid gap-4 pt-6 sm:grid-cols-2">
-          <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          {/* Username */}
+          <div className="theme-card-secondary flex min-w-0 items-start gap-3 rounded-xl p-4">
             <UserRound
-              className="mt-0.5 shrink-0 text-slate-400"
+              className="mt-0.5 shrink-0 text-purple-500 dark:text-purple-400"
               size={18}
               aria-hidden="true"
             />
+
             <div className="min-w-0">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-xs font-medium uppercase tracking-wide theme-text-muted">
                 Username
               </dt>
-              <dd className="mt-1 break-words text-sm text-slate-200">
+
+              <dd className="mt-1 break-words text-sm theme-text-secondary">
                 {user.username}
               </dd>
             </div>
           </div>
 
-          <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          {/* Email */}
+          <div className="theme-card-secondary flex min-w-0 items-start gap-3 rounded-xl p-4">
             <Mail
-              className="mt-0.5 shrink-0 text-slate-400"
+              className="mt-0.5 shrink-0 text-purple-500 dark:text-purple-400"
               size={18}
               aria-hidden="true"
             />
+
             <div className="min-w-0">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-xs font-medium uppercase tracking-wide theme-text-muted">
                 Email address
               </dt>
-              <dd className="mt-1 break-all text-sm text-slate-200">
+
+              <dd className="mt-1 break-all text-sm theme-text-secondary">
                 {user.email}
               </dd>
             </div>
           </div>
 
-          <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          {/* Role */}
+          <div className="theme-card-secondary flex min-w-0 items-start gap-3 rounded-xl p-4">
             <Shield
-              className="mt-0.5 shrink-0 text-slate-400"
+              className="mt-0.5 shrink-0 text-purple-500 dark:text-purple-400"
               size={18}
               aria-hidden="true"
             />
+
             <div className="min-w-0">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-xs font-medium uppercase tracking-wide theme-text-muted">
                 Account role
               </dt>
-              <dd className="mt-1 break-words text-sm capitalize text-slate-200">
+
+              <dd className="mt-1 break-words text-sm capitalize theme-text-secondary">
                 {user.role.replace(/[_-]+/g, ' ')}
               </dd>
             </div>
           </div>
 
+          {/* Account Creation Date */}
           {createdAt && (
-            <div className="flex min-w-0 items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="theme-card-secondary flex min-w-0 items-start gap-3 rounded-xl p-4">
               <CalendarDays
-                className="mt-0.5 shrink-0 text-slate-400"
+                className="mt-0.5 shrink-0 text-purple-500 dark:text-purple-400"
                 size={18}
                 aria-hidden="true"
               />
+
               <div className="min-w-0">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <dt className="text-xs font-medium uppercase tracking-wide theme-text-muted">
                   Account created
                 </dt>
-                <dd className="mt-1 text-sm text-slate-200">{createdAt}</dd>
+
+                <dd className="mt-1 text-sm theme-text-secondary">
+                  {createdAt}
+                </dd>
               </div>
             </div>
           )}

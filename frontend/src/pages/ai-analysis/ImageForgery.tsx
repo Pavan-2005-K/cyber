@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import axios from 'axios'
@@ -12,14 +13,23 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react'
+
 import { getCases, type Case } from '../../services/caseService'
 import {
   analyzeImageForgery,
   type ImageForgeryResponse,
 } from '../../services/aiAnalysisService'
 
+// =========================================================
+// CONFIGURATION
+// =========================================================
+
 const ACCEPTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+// =========================================================
+// ERROR HANDLING
+// =========================================================
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -28,16 +38,22 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
     }
 
     const data: unknown = error.response.data
+
     if (typeof data === 'object' && data !== null && 'detail' in data) {
       const { detail } = data
+
       if (typeof detail === 'string') return detail
+
       if (Array.isArray(detail)) {
         const messages = detail
           .map((item: unknown) => {
             if (typeof item !== 'object' || item === null) return null
 
             const message =
-              'msg' in item && typeof item.msg === 'string' ? item.msg : null
+              'msg' in item && typeof item.msg === 'string'
+                ? item.msg
+                : null
+
             if (!message) return null
 
             const location =
@@ -47,11 +63,13 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
                       typeof part === 'string' || typeof part === 'number',
                   )
                 : []
+
             return location.length
               ? `${location.slice(1).join('.') || location.join('.')}: ${message}`
               : message
           })
           .filter((message): message is string => message !== null)
+
         if (messages.length) return messages.join(' ')
       }
     }
@@ -59,6 +77,7 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
     if (error.response.status === 401) {
       return 'Your session may have expired. Please sign in again.'
     }
+
     return fallback
   }
 
@@ -73,15 +92,21 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+// =========================================================
+// STYLING HELPERS
+// =========================================================
+
 function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
-      return 'border-red-400/20 bg-red-400/10 text-red-300'
+      return 'border-red-400/30 bg-red-400/10 text-red-700 dark:text-red-300'
+
     case 'MEDIUM':
-      return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
+
     default:
-      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+      return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300'
   }
 }
 
@@ -91,7 +116,11 @@ function getExtension(filename: string): string {
 
 function formatFileSize(size: number): string {
   if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+
   return `${(size / (1024 * 1024)).toFixed(2)} MB`
 }
 
@@ -99,21 +128,40 @@ function formatProbability(value: number): string {
   return `${(value * 100).toFixed(2)}%`
 }
 
+// =========================================================
+// MAIN COMPONENT
+// =========================================================
+
 export default function ImageForgery() {
+  // Case state
   const [cases, setCases] = useState<Case[]>([])
   const [caseId, setCaseId] = useState('')
+
+  // File state
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
+
+  // Result state
   const [result, setResult] = useState<ImageForgeryResponse | null>(null)
+
+  // Error state
   const [casesError, setCasesError] = useState('')
   const [analysisError, setAnalysisError] = useState('')
   const [fileError, setFileError] = useState('')
+
+  // Loading state
   const [isLoadingCases, setIsLoadingCases] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
   const previewUrlRef = useRef<string | null>(null)
   const submissionLock = useRef(false)
+
+  // =======================================================
+  // LOAD CASES
+  // =======================================================
 
   useEffect(() => {
     let active = true
@@ -121,6 +169,7 @@ export default function ImageForgery() {
     getCases()
       .then((data) => {
         if (!active) return
+
         setCases(data)
         setCaseId(data[0] ? String(data[0].id) : '')
       })
@@ -140,6 +189,10 @@ export default function ImageForgery() {
     }
   }, [])
 
+  // =======================================================
+  // PREVIEW CLEANUP
+  // =======================================================
+
   useEffect(
     () => () => {
       if (previewUrlRef.current) {
@@ -148,6 +201,10 @@ export default function ImageForgery() {
     },
     [],
   )
+
+  // =======================================================
+  // UPDATE IMAGE PREVIEW
+  // =======================================================
 
   function updatePreview(candidate: File | null) {
     if (previewUrlRef.current) {
@@ -166,27 +223,46 @@ export default function ImageForgery() {
     setFile(candidate)
   }
 
+  // =======================================================
+  // FILE VALIDATION
+  // =======================================================
+
   function validateFile(candidate: File): string | null {
     if (!ACCEPTED_EXTENSIONS.includes(getExtension(candidate.name))) {
       return `Unsupported file type. Choose ${ACCEPTED_EXTENSIONS.join(', ')}.`
     }
-    if (candidate.size === 0) return 'The selected image is empty.'
+
+    if (candidate.size === 0) {
+      return 'The selected image is empty.'
+    }
+
     if (candidate.size > MAX_FILE_SIZE) {
       return 'The image file cannot exceed 10 MB.'
     }
+
     return null
   }
+
+  // =======================================================
+  // SELECT FILE
+  // =======================================================
 
   function selectFile(candidate: File | undefined) {
     setAnalysisError('')
     setResult(null)
+
     if (!candidate) return
 
     const validationError = validateFile(candidate)
+
     if (validationError) {
       updatePreview(null)
       setFileError(validationError)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+
       return
     }
 
@@ -194,33 +270,51 @@ export default function ImageForgery() {
     updatePreview(candidate)
   }
 
+  // =======================================================
+  // FILE INPUT CHANGE
+  // =======================================================
+
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     selectFile(event.target.files?.[0])
   }
 
+  // =======================================================
+  // DRAG AND DROP
+  // =======================================================
+
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
     setIsDragging(false)
+
     if (isAnalyzing) return
+
     selectFile(event.dataTransfer.files[0])
   }
 
+  // =======================================================
+  // IMAGE ANALYSIS
+  // =======================================================
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
     if (submissionLock.current) return
 
     setAnalysisError('')
     setResult(null)
+
     if (!caseId) {
       setAnalysisError('Select a case before analyzing an image.')
       return
     }
+
     if (!file) {
       setFileError('Choose an image file to analyze.')
       return
     }
 
     const validationError = validateFile(file)
+
     if (validationError) {
       setFileError(validationError)
       return
@@ -228,6 +322,7 @@ export default function ImageForgery() {
 
     submissionLock.current = true
     setIsAnalyzing(true)
+
     try {
       const analysis = await analyzeImageForgery(Number(caseId), file)
       setResult(analysis)
@@ -244,25 +339,42 @@ export default function ImageForgery() {
     }
   }
 
+  // =======================================================
+  // REMOVE FILE
+  // =======================================================
+
   function removeFile() {
     updatePreview(null)
     setFileError('')
     setAnalysisError('')
     setResult(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
+
+  // =======================================================
+  // RESET ANALYSIS
+  // =======================================================
 
   function resetAnalysis() {
     removeFile()
     setResult(null)
   }
 
+  // =======================================================
+  // RETRY CASES
+  // =======================================================
+
   function retryCases() {
     setIsLoadingCases(true)
     setCasesError('')
+
     getCases()
       .then((data) => {
         setCases(data)
+
         setCaseId((current) =>
           data.some((caseItem) => String(caseItem.id) === current)
             ? current
@@ -279,46 +391,66 @@ export default function ImageForgery() {
       .finally(() => setIsLoadingCases(false))
   }
 
-  const selectedCase = cases.find((caseItem) => String(caseItem.id) === caseId)
+  // =======================================================
+  // SELECTED CASE
+  // =======================================================
+
+  const selectedCase = cases.find(
+    (caseItem) => String(caseItem.id) === caseId,
+  )
+
+  // =======================================================
+  // UI
+  // =======================================================
 
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="mx-auto max-w-6xl space-y-6 theme-text">
+
+      {/* HEADER */}
+
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7954c8] dark:text-[#b6a1f5]">
           AI Analysis
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-3xl">
           Image Forgery Detection
         </h1>
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
+
+        <p className="mt-1.5 max-w-2xl text-sm text-[var(--text-secondary)]">
           Analyze an image for potential signs of manipulation and save the
           assessment to an investigation case.
         </p>
       </header>
 
+      {/* CASE LOADING ERROR */}
+
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-red-400/30 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="flex items-center gap-2 text-sm text-red-300">
+          <p className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
             <AlertCircle size={17} aria-hidden="true" />
             {casesError}
           </p>
+
           <button
             type="button"
             onClick={retryCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 sm:self-auto"
+            className="self-start rounded-lg border border-red-400/30 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-400/10 dark:text-red-300 sm:self-auto"
           >
             Retry
           </button>
         </div>
       )}
 
+      {/* FILE ERROR */}
+
       {fileError && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-4 py-3 text-sm text-amber-200"
+          className="flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.07] px-4 py-3 text-sm text-amber-700 dark:text-amber-200"
         >
           <AlertCircle
             size={17}
@@ -329,10 +461,12 @@ export default function ImageForgery() {
         </p>
       )}
 
+      {/* ANALYSIS ERROR */}
+
       {analysisError && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-700 dark:text-red-300"
         >
           <AlertCircle
             size={17}
@@ -343,33 +477,49 @@ export default function ImageForgery() {
         </p>
       )}
 
+      {/* =================================================
+          ANALYSIS FORM
+      ================================================= */}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+
+        {/* IMAGE UPLOAD FORM */}
+
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+          className="theme-card p-5 sm:p-7"
         >
+
+          {/* FORM HEADER */}
+
           <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-400/30 bg-purple-500/10 text-[#7954c8] dark:text-[#b6a1f5]">
               <FileImage size={21} aria-hidden="true" />
             </span>
+
             <div>
-              <h2 className="text-base font-semibold text-white">
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">
                 Image analysis
               </h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+
+              <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
                 Select a case and a supported image file for analysis.
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-5">
+
+            {/* CASE SELECTOR */}
+
             <div className="space-y-2">
               <label
                 htmlFor="image-forgery-case"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium text-[var(--text-primary)]"
               >
                 Investigation case
               </label>
+
               <select
                 id="image-forgery-case"
                 value={caseId}
@@ -378,32 +528,41 @@ export default function ImageForgery() {
                   setResult(null)
                   setAnalysisError('')
                 }}
-                disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
+                disabled={
+                  isLoadingCases ||
+                  cases.length === 0 ||
+                  isAnalyzing
+                }
                 required
-                className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-purple-500/10 disabled:opacity-60"
               >
                 {cases.length === 0 && (
                   <option value="">
                     {isLoadingCases ? 'Loading cases…' : 'No cases available'}
                   </option>
                 )}
+
                 {cases.map((caseItem) => (
                   <option key={caseItem.id} value={caseItem.id}>
                     {caseItem.case_number} — {caseItem.title}
                   </option>
                 ))}
               </select>
+
               {selectedCase && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--text-muted)]">
                   A successful analysis is saved to this case automatically.
                 </p>
               )}
             </div>
 
+            {/* IMAGE FILE */}
+
             <div className="space-y-2">
-              <span className="block text-sm font-medium text-slate-200">
+              <span className="block text-sm font-medium text-[var(--text-primary)]">
                 Image file
               </span>
+
               <div
                 onDragOver={(event) => {
                   event.preventDefault()
@@ -415,10 +574,10 @@ export default function ImageForgery() {
                   }
                 }}
                 onDrop={handleDrop}
-                className={`rounded-2xl border border-dashed p-4 transition sm:p-5 ${
+                className={`rounded-xl border border-dashed p-4 transition sm:p-5 ${
                   isDragging
-                    ? 'border-blue-400 bg-blue-500/[0.08]'
-                    : 'border-white/15 bg-[#242629] hover:border-white/25'
+                    ? 'border-[#9b82e8] bg-purple-500/[0.08]'
+                    : 'border-[var(--border-color)] bg-[var(--bg-input)] hover:border-[#9b82e8]/50'
                 }`}
               >
                 <input
@@ -430,26 +589,35 @@ export default function ImageForgery() {
                   disabled={isAnalyzing}
                   className="sr-only"
                 />
+
                 {!file ? (
+                  /* EMPTY UPLOAD */
+
                   <label
                     htmlFor="image-forgery-file"
                     className="flex cursor-pointer flex-col items-center justify-center py-7 text-center"
                   >
-                    <span className="flex size-12 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+                    <span className="flex size-12 items-center justify-center rounded-xl border border-purple-400/30 bg-purple-500/10 text-[#7954c8] dark:text-[#b6a1f5]">
                       <ImageUp size={22} aria-hidden="true" />
                     </span>
-                    <span className="mt-3 text-sm font-medium text-slate-200">
+
+                    <span className="mt-3 text-sm font-medium text-[var(--text-primary)]">
                       Drop an image here or{' '}
-                      <span className="text-blue-300">browse files</span>
+                      <span className="text-[#7954c8] dark:text-[#b6a1f5]">
+                        browse files
+                      </span>
                     </span>
-                    <span className="mt-1.5 text-xs text-slate-500">
+
+                    <span className="mt-1.5 text-xs text-[var(--text-muted)]">
                       JPG, JPEG, PNG, or WEBP · Maximum 10 MB
                     </span>
                   </label>
                 ) : (
+                  /* IMAGE PREVIEW */
+
                   <div className="space-y-4">
                     {previewUrl && (
-                      <div className="flex max-h-80 items-center justify-center overflow-hidden rounded-xl border border-white/[0.07] bg-black/20">
+                      <div className="flex max-h-80 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-elevated)]">
                         <img
                           src={previewUrl}
                           alt={`Selected image preview: ${file.name}`}
@@ -457,25 +625,33 @@ export default function ImageForgery() {
                         />
                       </div>
                     )}
+
+                    {/* FILE INFORMATION */}
+
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-slate-300">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-card-hover)] text-[var(--text-secondary)]">
                           <FileImage size={17} aria-hidden="true" />
                         </span>
+
                         <div className="min-w-0">
-                          <p className="break-all text-sm font-medium text-slate-200">
+                          <p className="break-all text-sm font-medium text-[var(--text-primary)]">
                             {file.name}
                           </p>
-                          <p className="mt-0.5 text-xs text-slate-500">
+
+                          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                             {formatFileSize(file.size)}
                           </p>
                         </div>
                       </div>
+
+                      {/* REMOVE FILE */}
+
                       <button
                         type="button"
                         onClick={removeFile}
                         disabled={isAnalyzing}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-medium text-slate-300 transition hover:border-red-400/20 hover:bg-red-400/[0.06] hover:text-red-300 disabled:opacity-50"
+                        className="theme-button inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition hover:border-red-400/30 hover:bg-red-400/[0.06] hover:text-red-600 dark:hover:text-red-300 disabled:opacity-50"
                       >
                         <X size={14} aria-hidden="true" />
                         Remove
@@ -487,22 +663,31 @@ export default function ImageForgery() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
+          {/* FORM BUTTONS */}
+
+          <div className="mt-6 flex flex-col-reverse gap-3 border-t theme-divider pt-5 sm:flex-row sm:justify-end">
+
             {(file || result) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
                 disabled={isAnalyzing}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+                className="theme-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition hover:bg-[var(--bg-card-hover)] disabled:opacity-50 sm:py-2.5"
               >
                 <RotateCcw size={15} aria-hidden="true" />
                 Reset
               </button>
             )}
+
             <button
               type="submit"
-              disabled={isAnalyzing || isLoadingCases || !caseId || !file}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              disabled={
+                isAnalyzing ||
+                isLoadingCases ||
+                !caseId ||
+                !file
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             >
               {isAnalyzing ? (
                 <LoaderCircle
@@ -513,24 +698,34 @@ export default function ImageForgery() {
               ) : (
                 <ScanSearch size={16} aria-hidden="true" />
               )}
+
               {isAnalyzing ? 'Analyzing image…' : 'Analyze image'}
             </button>
           </div>
         </form>
 
+        {/* =================================================
+            INFORMATION SIDEBAR
+        ================================================= */}
+
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.055] p-5 sm:p-6">
+
+          {/* FORENSIC INFORMATION */}
+
+          <div className="rounded-xl border border-purple-400/20 bg-purple-500/[0.045] p-5 sm:p-6">
             <div className="flex items-start gap-3">
               <ShieldAlert
                 size={19}
-                className="mt-0.5 shrink-0 text-blue-300"
+                className="mt-0.5 shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
                 aria-hidden="true"
               />
+
               <div>
-                <h2 className="text-sm font-semibold text-blue-100">
+                <h2 className="text-sm font-semibold text-[#7954c8] dark:text-[#d2c5ff]">
                   Forensic decision support
                 </h2>
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+
+                <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
                   AI-based image-forgery detection is an assessment, not
                   definitive proof of manipulation. False positives and false
                   negatives are possible; use independent forensic examination
@@ -540,18 +735,22 @@ export default function ImageForgery() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+          {/* SAVED FINDING INFORMATION */}
+
+          <div className="theme-card p-5 sm:p-6">
             <div className="flex items-center gap-2">
               <BadgeCheck
                 size={17}
-                className="text-emerald-300"
+                className="text-emerald-600 dark:text-emerald-300"
                 aria-hidden="true"
               />
-              <h2 className="text-sm font-semibold text-white">
+
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
                 Automatically saved finding
               </h2>
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+
+            <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
               Successful case-linked analysis is automatically saved to the
               selected case. The result includes its finding ID.
             </p>
@@ -559,23 +758,32 @@ export default function ImageForgery() {
         </aside>
       </div>
 
+      {/* =================================================
+          ANALYSIS RESULTS
+      ================================================= */}
+
       {result && (
         <section
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+          className="theme-card overflow-hidden"
         >
-          <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          {/* RESULT HEADER */}
+
+          <div className="flex flex-col gap-4 border-b theme-divider p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7954c8] dark:text-[#b6a1f5]">
                 Analysis result
               </p>
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+
+              <h2 className="mt-1.5 text-lg font-semibold text-[var(--text-primary)]">
                 {result.module}
               </h2>
-              <p className="mt-1 break-all text-xs text-slate-500">
+
+              <p className="mt-1 break-all text-xs text-[var(--text-muted)]">
                 {result.filename}
               </p>
             </div>
+
             <span
               className={`inline-flex self-start rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${getSeverityStyle(result.severity)}`}
             >
@@ -583,97 +791,138 @@ export default function ImageForgery() {
             </span>
           </div>
 
+          {/* RESULT CARDS */}
+
           <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+            {/* PREDICTION */}
+
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Prediction
               </p>
-              <p className="mt-2 text-lg font-semibold text-white">
+
+              <p className="mt-2 text-lg font-semibold text-[var(--text-primary)]">
                 {result.prediction}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Classification: {result.class}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
+
+            {/* CONFIDENCE */}
+
+            <div className="theme-card-secondary p-4">
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   Confidence
                 </p>
-                <p className="text-sm font-semibold text-white">
+
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
                   {formatProbability(result.confidence)}
                 </p>
               </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--bg-card-hover)]">
                 <div
-                  className="h-full rounded-full bg-blue-400"
+                  className="h-full rounded-full bg-[#9b82e8]"
                   style={{
-                    width: `${Math.min(100, Math.max(0, result.confidence * 100))}%`,
+                    width: `${Math.min(
+                      100,
+                      Math.max(0, result.confidence * 100),
+                    )}%`,
                   }}
                 />
               </div>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+            {/* TAMPERED PROBABILITY */}
+
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Tampered probability
               </p>
-              <p className="mt-2 text-lg font-semibold text-red-200">
+
+              <p className="mt-2 text-lg font-semibold text-red-600 dark:text-red-300">
                 {formatProbability(result.tampered_probability)}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+            {/* AUTHENTIC PROBABILITY */}
+
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Authentic probability
               </p>
-              <p className="mt-2 text-lg font-semibold text-emerald-200">
+
+              <p className="mt-2 text-lg font-semibold text-emerald-600 dark:text-emerald-300">
                 {formatProbability(result.authentic_probability)}
               </p>
             </div>
-            <div className="grid gap-3 rounded-xl border border-white/[0.07] bg-[#242629] p-4 text-sm sm:col-span-2 sm:grid-cols-3">
+
+            {/* MODEL DETAILS */}
+
+            <div className="theme-card-secondary grid gap-3 p-4 text-sm sm:col-span-2 sm:grid-cols-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   Model
                 </p>
-                <p className="mt-1 text-slate-200">{result.model}</p>
+
+                <p className="mt-1 break-words text-[var(--text-primary)]">
+                  {result.model}
+                </p>
               </div>
+
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   Threshold
                 </p>
-                <p className="mt-1 font-mono text-slate-200">
+
+                <p className="mt-1 font-mono text-[var(--text-primary)]">
                   {result.threshold}
                 </p>
               </div>
+
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   Input size
                 </p>
-                <p className="mt-1 font-mono text-slate-200">
+
+                <p className="mt-1 font-mono text-[var(--text-primary)]">
                   {result.input_size.join(' × ')}
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2">
+
+            {/* SAVED FINDING */}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.06] p-4 sm:col-span-2">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/80 dark:text-emerald-300/70">
                   Finding saved to case
                 </p>
-                <p className="mt-1 text-sm font-medium text-emerald-200">
+
+                <p className="mt-1 text-sm font-medium text-emerald-700 dark:text-emerald-200">
                   {result.message}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
                   Case #{result.case_id}
                   {selectedCase ? ` · ${selectedCase.case_number}` : ''}
                 </p>
               </div>
-              <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+
+              <span className="rounded-lg border border-emerald-400/30 bg-[var(--bg-card)] px-3 py-2 font-mono text-xs text-emerald-700 dark:text-emerald-200">
                 Finding #{result.finding_id}
               </span>
             </div>
           </div>
 
-          <div className="border-t border-white/[0.06] px-5 py-3 sm:px-7">
-            <p className="text-xs leading-relaxed text-slate-500">
+          {/* DISCLAIMER */}
+
+          <div className="border-t theme-divider px-5 py-3 sm:px-7">
+            <p className="text-xs leading-relaxed text-[var(--text-muted)]">
               This result is an AI-assisted assessment, not definitive proof
               that the image was manipulated.
             </p>

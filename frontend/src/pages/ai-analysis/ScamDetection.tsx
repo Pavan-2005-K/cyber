@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
@@ -74,11 +75,11 @@ function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
-      return 'border-red-400/20 bg-red-400/10 text-red-300'
+      return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300'
     case 'MEDIUM':
-      return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300'
     default:
-      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300'
   }
 }
 
@@ -124,14 +125,17 @@ export default function ScamDetection() {
 
     setAnalysisError('')
     setResult(null)
+
     if (!caseId) {
       setAnalysisError('Select a case before analyzing a message.')
       return
     }
+
     if (!text.trim()) {
       setAnalysisError('Enter a message to analyze.')
       return
     }
+
     if (text.length > MAX_TEXT_LENGTH) {
       setAnalysisError('The message cannot exceed 10,000 characters.')
       return
@@ -139,6 +143,7 @@ export default function ScamDetection() {
 
     submissionLock.current = true
     setIsAnalyzing(true)
+
     try {
       const analysis = await analyzeScamMessage(Number(caseId), text)
       setResult(analysis)
@@ -164,6 +169,7 @@ export default function ScamDetection() {
   function retryCases() {
     setIsLoadingCases(true)
     setCasesError('')
+
     getCases()
       .then((data) => {
         setCases(data)
@@ -183,46 +189,54 @@ export default function ScamDetection() {
       .finally(() => setIsLoadingCases(false))
   }
 
-  const selectedCase = cases.find((caseItem) => String(caseItem.id) === caseId)
+  const selectedCase = cases.find(
+    (caseItem) => String(caseItem.id) === caseId,
+  )
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <section className="mx-auto max-w-5xl space-y-6 theme-text">
+      {/* Page Header */}
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-600 dark:text-purple-400">
           AI Analysis
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight theme-text sm:text-3xl">
           Scam &amp; Spam Message Detection
         </h1>
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
+
+        <p className="mt-1.5 max-w-2xl text-sm theme-text-secondary">
           Analyze message text for scam and spam patterns and save the
           assessment to an investigation case.
         </p>
       </header>
 
+      {/* Case Loading Error */}
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-400/20 dark:bg-red-400/[0.07] sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="flex items-center gap-2 text-sm text-red-300">
+          <p className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
             <AlertCircle size={17} aria-hidden="true" />
             {casesError}
           </p>
+
           <button
             type="button"
             onClick={retryCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 sm:self-auto"
+            className="self-start rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:border-red-300/20 dark:text-red-200 dark:hover:bg-red-400/10 sm:self-auto"
           >
             Retry
           </button>
         </div>
       )}
 
+      {/* Analysis Error */}
       {analysisError && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300"
         >
           <AlertCircle
             size={17}
@@ -233,33 +247,41 @@ export default function ScamDetection() {
         </p>
       )}
 
+      {/* Main Layout */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+        {/* Analysis Form */}
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+          className="theme-card p-5 sm:p-7"
         >
+          {/* Form Heading */}
           <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-600 dark:border-purple-400/20 dark:bg-purple-500/[0.08] dark:text-purple-300">
               <MessageSquareWarning size={21} aria-hidden="true" />
             </span>
+
             <div>
-              <h2 className="text-base font-semibold text-white">
+              <h2 className="text-base font-semibold theme-text">
                 Message analysis
               </h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+
+              <p className="mt-1 text-xs leading-relaxed theme-text-secondary">
                 Paste the message content you want the model to assess.
               </p>
             </div>
           </div>
 
+          {/* Inputs */}
           <div className="mt-6 space-y-5">
+            {/* Case Selector */}
             <div className="space-y-2">
               <label
                 htmlFor="scam-case"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium theme-text"
               >
                 Investigation case
               </label>
+
               <select
                 id="scam-case"
                 value={caseId}
@@ -270,33 +292,37 @@ export default function ScamDetection() {
                 }}
                 disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
                 required
-                className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:opacity-90 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 disabled:opacity-60"
               >
                 {cases.length === 0 && (
                   <option value="">
                     {isLoadingCases ? 'Loading cases…' : 'No cases available'}
                   </option>
                 )}
+
                 {cases.map((caseItem) => (
                   <option key={caseItem.id} value={caseItem.id}>
                     {caseItem.case_number} — {caseItem.title}
                   </option>
                 ))}
               </select>
+
               {selectedCase && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs theme-text-muted">
                   A successful analysis is saved to this case automatically.
                 </p>
               )}
             </div>
 
+            {/* Message Text */}
             <div className="space-y-2">
               <label
                 htmlFor="scam-message"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium theme-text"
               >
                 Message text
               </label>
+
               <textarea
                 id="scam-message"
                 value={text}
@@ -311,10 +337,12 @@ export default function ScamDetection() {
                 rows={11}
                 disabled={isAnalyzing}
                 placeholder="Paste or type the message to analyze…"
-                className="w-full resize-y rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full resize-y rounded-xl px-4 py-3 text-sm leading-relaxed outline-none transition placeholder:opacity-50 hover:opacity-90 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 disabled:opacity-60"
               />
-              <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
+
+              <div className="flex items-center justify-between gap-3 text-[11px] theme-text-muted">
                 <span>Whitespace-only messages cannot be analyzed.</span>
+
                 <span className="shrink-0">
                   {text.length.toLocaleString()} / 10,000
                 </span>
@@ -322,18 +350,20 @@ export default function ScamDetection() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
+          {/* Form Actions */}
+          <div className="mt-6 flex flex-col-reverse gap-3 theme-divider border-t pt-5 sm:flex-row sm:justify-end">
             {(result || text) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
                 disabled={isAnalyzing}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+                className="theme-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition theme-hover disabled:opacity-50 sm:py-2.5"
               >
                 <RotateCcw size={15} aria-hidden="true" />
                 Reset
               </button>
             )}
+
             <button
               type="submit"
               disabled={
@@ -343,7 +373,7 @@ export default function ScamDetection() {
                 !text.trim() ||
                 text.length > MAX_TEXT_LENGTH
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             >
               {isAnalyzing ? (
                 <LoaderCircle
@@ -354,24 +384,29 @@ export default function ScamDetection() {
               ) : (
                 <ScanSearch size={16} aria-hidden="true" />
               )}
+
               {isAnalyzing ? 'Analyzing message…' : 'Analyze message'}
             </button>
           </div>
         </form>
 
+        {/* Information Sidebar */}
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.055] p-5 sm:p-6">
+          {/* AI Assessment Info */}
+          <div className="rounded-2xl border border-purple-200 bg-purple-50 p-5 dark:border-purple-400/[0.15] dark:bg-purple-500/[0.045] sm:p-6">
             <div className="flex items-start gap-3">
               <ShieldAlert
                 size={19}
-                className="mt-0.5 shrink-0 text-blue-300"
+                className="mt-0.5 shrink-0 text-purple-600 dark:text-purple-300"
                 aria-hidden="true"
               />
+
               <div>
-                <h2 className="text-sm font-semibold text-blue-100">
+                <h2 className="text-sm font-semibold text-purple-800 dark:text-purple-100">
                   AI-assisted assessment
                 </h2>
-                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+
+                <p className="mt-2 text-xs leading-relaxed theme-text-secondary">
                   This model-based result is not definitive proof that a
                   message is fraudulent, spam, or harmless. Consider it
                   decision support and investigate the context independently.
@@ -380,18 +415,21 @@ export default function ScamDetection() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+          {/* Saving Info */}
+          <div className="theme-card p-5 sm:p-6">
             <div className="flex items-center gap-2">
               <BadgeCheck
                 size={17}
-                className="text-emerald-300"
+                className="text-emerald-600 dark:text-emerald-300"
                 aria-hidden="true"
               />
-              <h2 className="text-sm font-semibold text-white">
+
+              <h2 className="text-sm font-semibold theme-text">
                 Automatically saved finding
               </h2>
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+
+            <p className="mt-2 text-xs leading-relaxed theme-text-secondary">
               This page uses the authenticated case-linked endpoint. On
               successful analysis, the backend saves the finding to the
               selected case and returns its finding ID.
@@ -400,20 +438,24 @@ export default function ScamDetection() {
         </aside>
       </div>
 
+      {/* Analysis Result */}
       {result && (
         <section
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+          className="theme-card overflow-hidden"
         >
-          <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          {/* Result Header */}
+          <div className="flex flex-col gap-4 theme-divider border-b p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-purple-600 dark:text-purple-400">
                 Analysis result
               </p>
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+
+              <h2 className="mt-1.5 text-lg font-semibold theme-text">
                 {result.module}
               </h2>
             </div>
+
             <span
               className={`inline-flex self-start rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${getSeverityStyle(result.severity)}`}
             >
@@ -421,57 +463,71 @@ export default function ScamDetection() {
             </span>
           </div>
 
+          {/* Result Details */}
           <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            {/* Prediction Card */}
+            <div className="theme-card-secondary rounded-xl p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                 Prediction
               </p>
-              <p className="mt-2 text-lg font-semibold text-white">
+
+              <p className="mt-2 text-lg font-semibold theme-text">
                 {result.prediction}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+
+              <p className="mt-1 text-xs theme-text-secondary">
                 Classification: {result.class}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
+
+            {/* Confidence Card */}
+            <div className="theme-card-secondary rounded-xl p-4">
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-wide theme-text-muted">
                   Confidence
                 </p>
-                <p className="text-sm font-semibold text-white">
+
+                <p className="text-sm font-semibold theme-text">
                   {(result.confidence * 100).toFixed(2)}%
                 </p>
               </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/[0.06]">
                 <div
-                  className="h-full rounded-full bg-blue-400"
+                  className="h-full rounded-full bg-purple-500"
                   style={{
                     width: `${Math.min(100, Math.max(0, result.confidence * 100))}%`,
                   }}
                 />
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2">
+
+            {/* Saved Finding */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-400/[0.15] dark:bg-emerald-400/[0.035] sm:col-span-2">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300/70">
                   Finding saved to case
                 </p>
-                <p className="mt-1 text-sm font-medium text-emerald-200">
+
+                <p className="mt-1 text-sm font-medium text-emerald-800 dark:text-emerald-200">
                   {result.message}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+
+                <p className="mt-1 text-xs theme-text-muted">
                   Case #{result.case_id}
                   {selectedCase ? ` · ${selectedCase.case_number}` : ''}
                 </p>
               </div>
-              <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
+
+              <span className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 font-mono text-xs text-emerald-800 dark:border-emerald-300/[0.15] dark:bg-black/10 dark:text-emerald-200">
                 Finding #{result.finding_id}
               </span>
             </div>
           </div>
 
-          <div className="border-t border-white/[0.06] px-5 py-3 sm:px-7">
-            <p className="text-xs leading-relaxed text-slate-500">
+          {/* Result Disclaimer */}
+          <div className="theme-divider border-t px-5 py-3 sm:px-7">
+            <p className="text-xs leading-relaxed theme-text-muted">
               This is an AI-assisted assessment, not definitive proof that the
               message is fraudulent or harmless.
             </p>

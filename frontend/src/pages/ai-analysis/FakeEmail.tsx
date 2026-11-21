@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import axios from 'axios'
@@ -83,11 +84,11 @@ function getSeverityStyle(severity: string): string {
   switch (severity.toUpperCase()) {
     case 'CRITICAL':
     case 'HIGH':
-      return 'border-red-400/20 bg-red-400/10 text-red-300'
+      return 'border-red-400/30 bg-red-400/10 text-red-600 dark:text-red-300'
     case 'MEDIUM':
-      return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
     default:
-      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+      return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300'
   }
 }
 
@@ -277,43 +278,46 @@ export default function FakeEmail() {
   const selectedCase = cases.find((caseItem) => String(caseItem.id) === caseId)
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <section className="mx-auto max-w-5xl space-y-6 theme-text">
+      {/* Header */}
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7954c8] dark:text-[#b6a1f5]">
           AI Analysis
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-3xl">
           Fake Email Detection
         </h1>
-        <p className="mt-1.5 max-w-2xl text-sm text-slate-400">
+        <p className="mt-1.5 max-w-2xl text-sm text-[var(--text-secondary)]">
           Assess email content for phishing indicators and save the result to
           an investigation case.
         </p>
       </header>
 
+      {/* Case loading error */}
       {casesError && (
         <div
           role="alert"
-          className="flex flex-col gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-red-400/30 bg-red-400/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="flex items-center gap-2 text-sm text-red-300">
+          <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-300">
             <AlertCircle size={17} aria-hidden="true" />
             {casesError}
           </p>
           <button
             type="button"
             onClick={retryCases}
-            className="self-start rounded-lg border border-red-300/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10 sm:self-auto"
+            className="self-start rounded-lg border border-red-400/30 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-400/10 dark:text-red-300 sm:self-auto"
           >
             Retry
           </button>
         </div>
       )}
 
+      {/* File error */}
       {fileError && mode === 'eml' && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-4 py-3 text-sm text-amber-200"
+          className="flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-4 py-3 text-sm text-amber-700 dark:text-amber-300"
         >
           <AlertCircle
             size={17}
@@ -324,10 +328,11 @@ export default function FakeEmail() {
         </p>
       )}
 
+      {/* Analysis error */}
       {analysisError && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-red-400/30 bg-red-400/[0.06] px-4 py-3 text-sm text-red-600 dark:text-red-300"
         >
           <AlertCircle
             size={17}
@@ -338,29 +343,32 @@ export default function FakeEmail() {
         </p>
       )}
 
+      {/* Analysis Form */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-7"
+        className="theme-card p-5 sm:p-7"
       >
+        {/* Form heading */}
         <div className="flex items-start gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
             <Mail size={21} aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">
               Email analysis
             </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
               Choose text analysis or submit an EML file with a readable
               plain-text body.
             </p>
           </div>
         </div>
 
+        {/* Mode Switch */}
         <div
           role="tablist"
           aria-label="Email analysis mode"
-          className="mt-6 grid grid-cols-2 gap-2 rounded-xl border border-white/[0.07] bg-[#242629] p-1"
+          className="theme-card-secondary mt-6 grid grid-cols-2 gap-2 p-1"
         >
           <button
             type="button"
@@ -372,13 +380,14 @@ export default function FakeEmail() {
             disabled={isAnalyzing}
             className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
               mode === 'text'
-                ? 'bg-blue-500/15 text-blue-200'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#9b82e8]/15 text-[#7954c8] dark:text-[#c5b4fa]'
+                : 'text-[var(--text-secondary)] theme-hover hover:text-[var(--text-primary)]'
             }`}
           >
             <FileText size={16} aria-hidden="true" />
             Email Text
           </button>
+
           <button
             type="button"
             role="tab"
@@ -389,8 +398,8 @@ export default function FakeEmail() {
             disabled={isAnalyzing}
             className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
               mode === 'eml'
-                ? 'bg-blue-500/15 text-blue-200'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#9b82e8]/15 text-[#7954c8] dark:text-[#c5b4fa]'
+                : 'text-[var(--text-secondary)] theme-hover hover:text-[var(--text-primary)]'
             }`}
           >
             <Upload size={16} aria-hidden="true" />
@@ -399,10 +408,11 @@ export default function FakeEmail() {
         </div>
 
         <div className="mt-5 space-y-5">
+          {/* Case Selector */}
           <div className="space-y-2">
             <label
               htmlFor="fake-email-case"
-              className="block text-sm font-medium text-slate-200"
+              className="block text-sm font-medium text-[var(--text-primary)]"
             >
               Investigation case
             </label>
@@ -416,7 +426,7 @@ export default function FakeEmail() {
               }}
               disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
               required
-              className="w-full rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+              className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10 disabled:opacity-60"
             >
               {cases.length === 0 && (
                 <option value="">
@@ -429,13 +439,15 @@ export default function FakeEmail() {
                 </option>
               ))}
             </select>
+
             {selectedCase && (
-              <p className="text-xs text-slate-500">
-                A successful analysis is saved to this case automatically.
+              <p className="text-xs text-[var(--text-muted)]">
+                Successful analysis will be saved to this case.
               </p>
             )}
           </div>
 
+          {/* Text Mode */}
           {mode === 'text' ? (
             <div
               id="fake-email-text-panel"
@@ -445,10 +457,11 @@ export default function FakeEmail() {
             >
               <label
                 htmlFor="fake-email-text"
-                className="block text-sm font-medium text-slate-200"
+                className="block text-sm font-medium text-[var(--text-primary)]"
               >
                 Email content
               </label>
+
               <textarea
                 id="fake-email-text"
                 value={emailText}
@@ -463,9 +476,10 @@ export default function FakeEmail() {
                 rows={12}
                 disabled={isAnalyzing}
                 placeholder="Paste or type email content to analyze…"
-                className="w-full resize-y rounded-xl border border-white/10 bg-[#242629] px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+                className="theme-input w-full resize-y rounded-xl px-4 py-3 text-sm leading-relaxed outline-none transition placeholder:text-[var(--text-muted)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10 disabled:opacity-60"
               />
-              <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
+
+              <div className="flex items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
                 <span>Whitespace-only input cannot be analyzed.</span>
                 <span className="shrink-0">
                   {emailText.length.toLocaleString()} / 100,000
@@ -473,15 +487,17 @@ export default function FakeEmail() {
               </div>
             </div>
           ) : (
+            /* EML Mode */
             <div
               id="fake-email-eml-panel"
               role="tabpanel"
               aria-labelledby="fake-email-eml-tab"
               className="space-y-2"
             >
-              <span className="block text-sm font-medium text-slate-200">
+              <span className="block text-sm font-medium text-[var(--text-primary)]">
                 EML file
               </span>
+
               <div
                 onDragOver={(event) => {
                   event.preventDefault()
@@ -495,8 +511,8 @@ export default function FakeEmail() {
                 onDrop={handleDrop}
                 className={`rounded-2xl border border-dashed p-4 transition sm:p-5 ${
                   isDragging
-                    ? 'border-blue-400 bg-blue-500/[0.08]'
-                    : 'border-white/15 bg-[#242629] hover:border-white/25'
+                    ? 'border-[#9b82e8] bg-[#9b82e8]/[0.08]'
+                    : 'border-[var(--border-color)] bg-[var(--bg-input)] hover:border-[#9b82e8]/50'
                 }`}
               >
                 <input
@@ -508,37 +524,42 @@ export default function FakeEmail() {
                   disabled={isAnalyzing}
                   className="sr-only"
                 />
+
                 {!file ? (
                   <label
                     htmlFor="fake-email-eml-file"
                     className="flex cursor-pointer flex-col items-center justify-center py-7 text-center"
                   >
-                    <span className="flex size-12 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300">
+                    <span className="flex size-12 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
                       <Upload size={22} aria-hidden="true" />
                     </span>
-                    <span className="mt-3 text-sm font-medium text-slate-200">
+
+                    <span className="mt-3 text-sm font-medium text-[var(--text-primary)]">
                       Drop an EML file here or{' '}
-                      <span className="text-blue-300">browse files</span>
+                      <span className="text-[#7954c8] dark:text-[#b6a1f5]">browse files</span>
                     </span>
-                    <span className="mt-1.5 text-xs text-slate-500">
+
+                    <span className="mt-1.5 text-xs text-[var(--text-muted)]">
                       .eml only · Maximum size: 5 MB
                     </span>
                   </label>
                 ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="theme-card-secondary flex flex-wrap items-center justify-between gap-3 p-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-blue-400/15 bg-blue-500/[0.08] text-blue-300">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
                         <FileText size={19} aria-hidden="true" />
                       </span>
+
                       <div className="min-w-0">
-                        <p className="break-all text-sm font-medium text-slate-200">
+                        <p className="break-all text-sm font-medium text-[var(--text-primary)]">
                           {file.name}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
+                        <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                           {formatFileSize(file.size)}
                         </p>
                       </div>
                     </div>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -550,7 +571,7 @@ export default function FakeEmail() {
                         }
                       }}
                       disabled={isAnalyzing}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-medium text-slate-300 transition hover:border-red-400/20 hover:bg-red-400/[0.06] hover:text-red-300 disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border theme-divider px-2.5 py-2 text-xs font-medium text-[var(--text-secondary)] transition theme-hover hover:text-red-500 disabled:opacity-50"
                     >
                       <X size={14} aria-hidden="true" />
                       Remove
@@ -558,7 +579,8 @@ export default function FakeEmail() {
                   </div>
                 )}
               </div>
-              <p className="text-[11px] leading-relaxed text-slate-500">
+
+              <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
                 The backend analyzes a readable plain-text body. HTML-only
                 emails are unsupported; extracted headers are not authenticated.
               </p>
@@ -566,28 +588,31 @@ export default function FakeEmail() {
           )}
         </div>
 
-        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-start gap-2 text-xs leading-relaxed text-slate-500">
+        {/* Form Actions */}
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t theme-divider pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-xs leading-relaxed text-[var(--text-muted)]">
             <ShieldAlert
               size={15}
-              className="mt-0.5 shrink-0 text-blue-300"
+              className="mt-0.5 shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
               aria-hidden="true"
             />
             AI-assisted assessment, not definitive proof that an email is
             fraudulent.
           </p>
+
           <div className="flex flex-col-reverse gap-3 sm:flex-row">
             {(result || emailText || file) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
                 disabled={isAnalyzing}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50 sm:py-2.5"
+                className="theme-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition theme-hover disabled:opacity-50 sm:py-2.5"
               >
                 <RotateCcw size={15} aria-hidden="true" />
                 Reset
               </button>
             )}
+
             <button
               type="submit"
               disabled={
@@ -599,7 +624,7 @@ export default function FakeEmail() {
                     emailText.length > MAX_EMAIL_TEXT_LENGTH
                   : !file)
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b82e8]/20 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2.5"
             >
               {isAnalyzing ? (
                 <LoaderCircle
@@ -616,18 +641,19 @@ export default function FakeEmail() {
         </div>
       </form>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-[#303236] p-5 sm:p-6">
+      {/* Auto-save Info */}
+      <div className="theme-card p-5 sm:p-6">
         <div className="flex items-start gap-3">
           <BadgeCheck
             size={18}
-            className="mt-0.5 shrink-0 text-emerald-300"
+            className="mt-0.5 shrink-0 text-emerald-600 dark:text-[#39b99b]"
             aria-hidden="true"
           />
           <div>
-            <h2 className="text-sm font-semibold text-white">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
               Automatically saved finding
             </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
               Both case-linked modes save a successful analysis to the
               selected case and return its finding ID.
             </p>
@@ -635,25 +661,29 @@ export default function FakeEmail() {
         </div>
       </div>
 
+      {/* Analysis Results */}
       {result && (
         <section
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#303236]"
+          className="theme-card overflow-hidden"
         >
-          <div className="flex flex-col gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          {/* Result Header */}
+          <div className="flex flex-col gap-4 border-b theme-divider p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7954c8] dark:text-[#b6a1f5]">
                 Analysis result
               </p>
-              <h2 className="mt-1.5 text-lg font-semibold text-white">
+              <h2 className="mt-1.5 text-lg font-semibold text-[var(--text-primary)]">
                 {result.module}
               </h2>
+
               {isFileResult(result) && (
-                <p className="mt-1 break-all text-xs text-slate-500">
+                <p className="mt-1 break-all text-xs text-[var(--text-muted)]">
                   {result.filename}
                 </p>
               )}
             </div>
+
             <span
               className={`inline-flex self-start rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${getSeverityStyle(result.severity)}`}
             >
@@ -661,48 +691,55 @@ export default function FakeEmail() {
             </span>
           </div>
 
+          {/* Metrics */}
           <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Prediction
               </p>
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="mt-2 text-lg font-semibold text-[var(--text-primary)]">
                 {result.prediction}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 Classification: {result.class}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Confidence
               </p>
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="mt-2 text-lg font-semibold text-[var(--text-primary)]">
                 {formatProbability(result.confidence)}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Phishing probability
               </p>
-              <p className="mt-2 text-lg font-semibold text-red-200">
+              <p className="mt-2 text-lg font-semibold text-red-600 dark:text-red-300">
                 {formatProbability(result.phishing_probability)}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+            <div className="theme-card-secondary p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Decision threshold
               </p>
-              <p className="mt-2 text-lg font-semibold text-slate-100">
+              <p className="mt-2 text-lg font-semibold text-[var(--text-primary)]">
                 {formatProbability(result.threshold)}
               </p>
             </div>
+
+            {/* EML Headers */}
             {isFileResult(result) && (
               <>
-                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4 sm:col-span-2 lg:col-span-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <div className="theme-card-secondary p-4 sm:col-span-2 lg:col-span-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     Email headers
                   </p>
+
                   <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
                     {(
                       [
@@ -714,37 +751,44 @@ export default function FakeEmail() {
                       ] as const
                     ).map(([label, value]) => (
                       <div key={label} className="min-w-0">
-                        <dt className="text-[11px] text-slate-500">{label}</dt>
-                        <dd className="mt-0.5 break-words text-sm text-slate-200">
+                        <dt className="text-[11px] text-[var(--text-muted)]">{label}</dt>
+                        <dd className="mt-0.5 break-words text-sm text-[var(--text-primary)]">
                           {value || 'Not provided'}
                         </dd>
                       </div>
                     ))}
                   </dl>
                 </div>
-                <div className="rounded-xl border border-white/[0.07] bg-[#242629] p-4 sm:col-span-2 lg:col-span-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+
+                {/* Analysis Scope */}
+                <div className="theme-card-secondary p-4 sm:col-span-2 lg:col-span-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     Analysis scope
                   </p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-200">
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--text-primary)]">
                     {result.analysis_scope}
                   </p>
                 </div>
               </>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4 sm:col-span-2 lg:col-span-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300/70">
-                  Finding saved to case #{result.case_id}
-                  {selectedCase ? ` · ${selectedCase.case_number}` : ''}
-                </p>
-                <p className="mt-1 text-sm font-medium text-emerald-200">
-                  {result.message}
-                </p>
+
+            {/* Saved Finding */}
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/[0.06] p-4 sm:col-span-2 lg:col-span-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                    Finding saved to case #{result.case_id}
+                    {selectedCase ? ` · ${selectedCase.case_number}` : ''}
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-emerald-700 dark:text-emerald-200">
+                    {result.message}
+                  </p>
+                </div>
+
+                <span className="rounded-lg border border-emerald-400/30 bg-[var(--bg-card)] px-3 py-2 font-mono text-xs text-emerald-700 dark:text-emerald-300">
+                  Finding #{result.finding_id}
+                </span>
               </div>
-              <span className="rounded-lg border border-emerald-300/15 bg-black/10 px-3 py-2 font-mono text-xs text-emerald-200">
-                Finding #{result.finding_id}
-              </span>
             </div>
           </div>
         </section>

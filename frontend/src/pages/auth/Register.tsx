@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import { AtSign, Fingerprint, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -28,18 +29,22 @@ export default function Register() {
       setErrorMessage('Complete all fields to create your account.')
       return
     }
+
     if (password.length < 12) {
       setErrorMessage('Your password must be at least 12 characters.')
       return
     }
+
     if (password !== confirmPassword) {
       setErrorMessage('The passwords do not match.')
       return
     }
 
     setIsSubmitting(true)
+
     try {
       const response = await registerUser({ username, email, password })
+
       navigate('/login', {
         replace: true,
         state: {
@@ -49,7 +54,10 @@ export default function Register() {
       })
     } catch (error) {
       setErrorMessage(
-        getAuthErrorMessage(error, 'Unable to create your account. Please try again.'),
+        getAuthErrorMessage(
+          error,
+          'Unable to create your account. Please try again.',
+        ),
       )
     } finally {
       setIsSubmitting(false)
@@ -66,7 +74,7 @@ export default function Register() {
           Already have an account?{' '}
           <Link
             to="/login"
-            className="font-medium text-blue-400 transition hover:text-blue-300"
+            className="font-medium text-purple-400 transition hover:text-purple-300"
           >
             Sign in
           </Link>
@@ -82,6 +90,7 @@ export default function Register() {
             {errorMessage}
           </p>
         )}
+
         <AuthTextField
           id="username"
           label="Username"
@@ -89,6 +98,7 @@ export default function Register() {
           autoComplete="username"
           icon={<UserRound size={17} aria-hidden="true" />}
         />
+
         <AuthTextField
           id="email"
           label="Email"
@@ -97,6 +107,7 @@ export default function Register() {
           autoComplete="email"
           icon={<AtSign size={17} aria-hidden="true" />}
         />
+
         <PasswordField
           id="password"
           label="Password"
@@ -104,10 +115,13 @@ export default function Register() {
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="new-password"
           visible={showPassword}
-          onToggleVisibility={() => setShowPassword((visible) => !visible)}
+          onToggleVisibility={() =>
+            setShowPassword((visible) => !visible)
+          }
           minLength={12}
           helperText="Use at least 12 characters."
         />
+
         <PasswordField
           id="confirm-password"
           label="Confirm Password"
@@ -119,18 +133,20 @@ export default function Register() {
             setShowConfirmPassword((visible) => !visible)
           }
         />
+
         <p className="flex items-start gap-2 pt-1 text-xs leading-5 text-slate-500">
           <Fingerprint
             size={15}
-            className="mt-0.5 shrink-0 text-blue-400"
+            className="mt-0.5 shrink-0 text-purple-400"
             aria-hidden="true"
           />
           Public accounts are created with the Investigator role.
         </p>
+
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:bg-purple-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-400/30 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Creating account…' : 'Create Account'}
         </button>

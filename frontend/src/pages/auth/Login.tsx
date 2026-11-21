@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import { AtSign, ArrowRight } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -17,6 +18,7 @@ export default function Login() {
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+
   const registrationSuccess =
     typeof location.state === 'object' &&
     location.state !== null &&
@@ -30,12 +32,14 @@ export default function Login() {
     setErrorMessage('')
 
     const username_or_email = usernameOrEmail.trim()
+
     if (!username_or_email || !password) {
       setErrorMessage('Enter your username or email and password.')
       return
     }
 
     setIsSubmitting(true)
+
     try {
       await login({ username_or_email, password })
       navigate('/dashboard', { replace: true })
@@ -58,7 +62,7 @@ export default function Login() {
           New to CyberFusion?{' '}
           <Link
             to="/register"
-            className="font-medium text-blue-400 transition hover:text-blue-300"
+            className="font-medium text-purple-400 transition hover:text-purple-300"
           >
             Create an account
           </Link>
@@ -74,6 +78,7 @@ export default function Login() {
             {registrationSuccess}
           </p>
         )}
+
         {errorMessage && (
           <p
             role="alert"
@@ -82,6 +87,7 @@ export default function Login() {
             {errorMessage}
           </p>
         )}
+
         <AuthTextField
           id="username"
           label="Username or Email"
@@ -91,6 +97,7 @@ export default function Login() {
           value={usernameOrEmail}
           onChange={(event) => setUsernameOrEmail(event.target.value)}
         />
+
         <PasswordField
           id="password"
           label="Password"
@@ -98,14 +105,18 @@ export default function Login() {
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           visible={showPassword}
-          onToggleVisibility={() => setShowPassword((visible) => !visible)}
+          onToggleVisibility={() =>
+            setShowPassword((visible) => !visible)
+          }
         />
+
         <button
           type="submit"
           disabled={isSubmitting}
-          className="group flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/20 transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+          className="group flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-950/20 transition hover:bg-purple-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-400/30 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Signing in…' : 'Login'}
+
           <ArrowRight
             size={17}
             className="transition-transform group-hover:translate-x-0.5"
