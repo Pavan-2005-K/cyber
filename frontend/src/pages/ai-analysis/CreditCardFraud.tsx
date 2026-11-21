@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import axios from 'axios'
@@ -165,20 +166,6 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
-}
-
-function getSeverityStyle(severity: string): string {
-  switch (severity.toUpperCase()) {
-    case 'CRITICAL':
-    case 'HIGH':
-      return 'border-red-400/30 bg-red-400/10 text-red-600 dark:text-red-300'
-
-    case 'MEDIUM':
-      return 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300'
-
-    default:
-      return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300'
-  }
 }
 
 function formatProbability(value: number): string {
