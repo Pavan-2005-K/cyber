@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import {
   ChevronDown,
@@ -11,7 +10,6 @@ import {
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
-import { useTheme } from '../context/useTheme'
 import { dashboardNavigation } from './dashboardNavigation'
 import CyberFusionChatbot from '../components/CyberFusionChatbot'
 
@@ -29,11 +27,8 @@ function getPageTitle(pathname: string): string {
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth()
-  const { theme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
-
-  const isDark = theme === 'dark'
 
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
