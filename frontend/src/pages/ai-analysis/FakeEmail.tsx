@@ -16,8 +16,13 @@ import {
 } from 'lucide-react'
 import { getCases, type Case } from '../../services/caseService'
 import {
+  getEvidenceByCase,
+  type Evidence,
+} from '../../services/evidenceService'
+import {
   analyzeFakeEmailFile,
   analyzeFakeEmailText,
+  analyzeFakeEmailEvidence,
   type FakeEmailFileResponse,
   type FakeEmailTextResponse,
 } from '../../services/aiAnalysisService'
@@ -25,7 +30,7 @@ import {
 const MAX_EMAIL_TEXT_LENGTH = 100_000
 const MAX_EML_FILE_SIZE = 5 * 1024 * 1024
 
-type AnalysisMode = 'text' | 'eml'
+type AnalysisMode = 'text' | 'eml' | 'evidence'
 type FakeEmailResult = FakeEmailTextResponse | FakeEmailFileResponse
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
@@ -113,15 +118,23 @@ export default function FakeEmail() {
   const [emailText, setEmailText] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [result, setResult] = useState<FakeEmailResult | null>(null)
+
+  const [evidenceList, setEvidenceList] = useState<Evidence[]>([])
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState('')
+  const [isLoadingEvidence, setIsLoadingEvidence] = useState(false)
+  const [evidenceError, setEvidenceError] = useState('')
+
   const [casesError, setCasesError] = useState('')
   const [analysisError, setAnalysisError] = useState('')
   const [fileError, setFileError] = useState('')
   const [isLoadingCases, setIsLoadingCases] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const submissionLock = useRef(false)
 
+  // Load cases
   useEffect(() => {
     let active = true
 
@@ -146,6 +159,45 @@ export default function FakeEmail() {
       active = false
     }
   }, [])
+
+  // Load EML evidence for the selected case
+  useEffect(() => {
+    if (!caseId) {
+      setEvidenceList([])
+      setSelectedEvidenceId('')
+      return
+    }
+
+    let active = true
+    setIsLoadingEvidence(true)
+    setEvidenceError('')
+    setEvidenceList([])
+    setSelectedEvidenceId('')
+
+    getEvidenceByCase(Number(caseId))
+      .then((data) => {
+        if (!active) return
+
+        const emlFiles = data.filter((item) =>
+          item.original_filename.toLowerCase().endsWith('.eml'),
+        )
+        setEvidenceList(emlFiles)
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setEvidenceError(
+            getApiErrorMessage(error, 'Existing evidence could not be loaded.'),
+          )
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingEvidence(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [caseId])
 
   function validateFile(candidate: File): string | null {
     if (!candidate.name.toLowerCase().endsWith('.eml')) {
@@ -192,10 +244,12 @@ export default function FakeEmail() {
 
     setAnalysisError('')
     setResult(null)
+
     if (!caseId) {
       setAnalysisError('Select a case before analyzing an email.')
       return
     }
+
     if (mode === 'text') {
       if (!emailText.trim()) {
         setAnalysisError('Enter email content to analyze.')
@@ -205,7 +259,7 @@ export default function FakeEmail() {
         setAnalysisError('Email text cannot exceed 100,000 characters.')
         return
       }
-    } else {
+    } else if (mode === 'eml') {
       if (!file) {
         setFileError('Choose an EML file to analyze.')
         return
@@ -215,15 +269,27 @@ export default function FakeEmail() {
         setFileError(validationError)
         return
       }
+    } else {
+      if (!selectedEvidenceId) {
+        setAnalysisError('Select an existing EML evidence file.')
+        return
+      }
     }
 
     submissionLock.current = true
     setIsAnalyzing(true)
+
     try {
       const analysis =
         mode === 'text'
           ? await analyzeFakeEmailText(Number(caseId), emailText)
-          : await analyzeFakeEmailFile(Number(caseId), file!)
+          : mode === 'eml'
+              ? await analyzeFakeEmailFile(Number(caseId), file!)
+              : await analyzeFakeEmailEvidence(
+                  Number(caseId),
+                  Number(selectedEvidenceId),
+                )
+
       setResult(analysis)
     } catch (error) {
       setAnalysisError(
@@ -244,6 +310,7 @@ export default function FakeEmail() {
     setFileError('')
     setAnalysisError('')
     setResult(null)
+    setSelectedEvidenceId('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -344,10 +411,7 @@ export default function FakeEmail() {
       )}
 
       {/* Analysis Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="theme-card p-5 sm:p-7"
-      >
+      <form onSubmit={handleSubmit} className="theme-card p-5 sm:p-7">
         {/* Form heading */}
         <div className="flex items-start gap-3">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
@@ -358,8 +422,8 @@ export default function FakeEmail() {
               Email analysis
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-              Choose text analysis or submit an EML file with a readable
-              plain-text body.
+              Choose text analysis, upload an EML file, or select existing case
+              evidence.
             </p>
           </div>
         </div>
@@ -368,7 +432,7 @@ export default function FakeEmail() {
         <div
           role="tablist"
           aria-label="Email analysis mode"
-          className="theme-card-secondary mt-6 grid grid-cols-2 gap-2 p-1"
+          className="theme-card-secondary mt-6 grid grid-cols-3 gap-2 p-1"
         >
           <button
             type="button"
@@ -378,7 +442,7 @@ export default function FakeEmail() {
             aria-controls="fake-email-text-panel"
             onClick={() => changeMode('text')}
             disabled={isAnalyzing}
-            className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
               mode === 'text'
                 ? 'bg-[#9b82e8]/15 text-[#7954c8] dark:text-[#c5b4fa]'
                 : 'text-[var(--text-secondary)] theme-hover hover:text-[var(--text-primary)]'
@@ -396,7 +460,7 @@ export default function FakeEmail() {
             aria-controls="fake-email-eml-panel"
             onClick={() => changeMode('eml')}
             disabled={isAnalyzing}
-            className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
               mode === 'eml'
                 ? 'bg-[#9b82e8]/15 text-[#7954c8] dark:text-[#c5b4fa]'
                 : 'text-[var(--text-secondary)] theme-hover hover:text-[var(--text-primary)]'
@@ -404,6 +468,24 @@ export default function FakeEmail() {
           >
             <Upload size={16} aria-hidden="true" />
             Upload EML
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="fake-email-evidence-tab"
+            aria-selected={mode === 'evidence'}
+            aria-controls="fake-email-evidence-panel"
+            onClick={() => changeMode('evidence')}
+            disabled={isAnalyzing}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+              mode === 'evidence'
+                ? 'bg-[#9b82e8]/15 text-[#7954c8] dark:text-[#c5b4fa]'
+                : 'text-[var(--text-secondary)] theme-hover hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <ScanSearch size={16} aria-hidden="true" />
+            Existing Evidence
           </button>
         </div>
 
@@ -421,8 +503,10 @@ export default function FakeEmail() {
               value={caseId}
               onChange={(event) => {
                 setCaseId(event.target.value)
+                setSelectedEvidenceId('')
                 setResult(null)
                 setAnalysisError('')
+                setEvidenceError('')
               }}
               disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
               required
@@ -486,7 +570,7 @@ export default function FakeEmail() {
                 </span>
               </div>
             </div>
-          ) : (
+          ) : mode === 'eml' ? (
             /* EML Mode */
             <div
               id="fake-email-eml-panel"
@@ -536,7 +620,9 @@ export default function FakeEmail() {
 
                     <span className="mt-3 text-sm font-medium text-[var(--text-primary)]">
                       Drop an EML file here or{' '}
-                      <span className="text-[#7954c8] dark:text-[#b6a1f5]">browse files</span>
+                      <span className="text-[#7954c8] dark:text-[#b6a1f5]">
+                        browse files
+                      </span>
                     </span>
 
                     <span className="mt-1.5 text-xs text-[var(--text-muted)]">
@@ -581,9 +667,83 @@ export default function FakeEmail() {
               </div>
 
               <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
-                The backend analyzes a readable plain-text body. HTML-only
-                emails are unsupported; extracted headers are not authenticated.
+                The backend analyzes a readable plain-text body. HTML-only emails
+                are unsupported; extracted headers are not authenticated.
               </p>
+            </div>
+          ) : (
+            /* Existing Evidence Mode */
+            <div
+              id="fake-email-evidence-panel"
+              role="tabpanel"
+              aria-labelledby="fake-email-evidence-tab"
+              className="space-y-3"
+            >
+              <label
+                htmlFor="fake-email-existing-evidence"
+                className="block text-sm font-medium text-[var(--text-primary)]"
+              >
+                Select existing EML evidence
+              </label>
+
+              {isLoadingEvidence ? (
+                <div className="flex items-center gap-2 py-5 text-sm text-[var(--text-secondary)]">
+                  <LoaderCircle size={16} className="animate-spin" />
+                  Loading case evidence…
+                </div>
+              ) : evidenceError ? (
+                <div className="rounded-xl border border-red-400/30 bg-red-400/[0.06] p-3 text-sm text-red-500">
+                  {evidenceError}
+                </div>
+              ) : evidenceList.length === 0 ? (
+                <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-4 text-sm text-amber-700 dark:text-amber-300">
+                  No EML files found in this case. Upload an EML file to the case
+                  first.
+                </div>
+              ) : (
+                <>
+                  <select
+                    id="fake-email-existing-evidence"
+                    value={selectedEvidenceId}
+                    onChange={(event) => {
+                      setSelectedEvidenceId(event.target.value)
+                      setResult(null)
+                      setAnalysisError('')
+                    }}
+                    disabled={isAnalyzing}
+                    className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10"
+                  >
+                    <option value="">Choose an existing EML file</option>
+                    {evidenceList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        #{item.id} — {item.original_filename} (
+                        {formatFileSize(item.file_size)})
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedEvidenceId && (
+                    <div className="theme-card-secondary rounded-xl p-4 text-xs space-y-1">
+                      <p className="font-medium text-[var(--text-primary)]">
+                        Evidence ID: {selectedEvidenceId}
+                      </p>
+                      <p className="text-[var(--text-secondary)]">
+                        File:{' '}
+                        {
+                          evidenceList.find(
+                            (item) => String(item.id) === selectedEvidenceId,
+                          )?.original_filename
+                        }
+                      </p>
+                      <p className="text-[var(--text-muted)]">
+                        The file will be retrieved from secure storage and its
+                        SHA-256 integrity verified before analysis. No re-upload
+                        is needed.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -601,7 +761,7 @@ export default function FakeEmail() {
           </p>
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row">
-            {(result || emailText || file) && (
+            {(result || emailText || file || selectedEvidenceId) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
@@ -622,7 +782,9 @@ export default function FakeEmail() {
                 (mode === 'text'
                   ? !emailText.trim() ||
                     emailText.length > MAX_EMAIL_TEXT_LENGTH
-                  : !file)
+                  : mode === 'eml'
+                    ? !file
+                    : !selectedEvidenceId || isLoadingEvidence)
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b82e8]/20 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2.5"
             >
@@ -654,8 +816,8 @@ export default function FakeEmail() {
               Automatically saved finding
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-              Both case-linked modes save a successful analysis to the
-              selected case and return its finding ID.
+              All three analysis modes save a successful analysis to the selected
+              case and return its finding ID.
             </p>
           </div>
         </div>
@@ -663,10 +825,7 @@ export default function FakeEmail() {
 
       {/* Analysis Results */}
       {result && (
-        <section
-          aria-live="polite"
-          className="theme-card overflow-hidden"
-        >
+        <section aria-live="polite" className="theme-card overflow-hidden">
           {/* Result Header */}
           <div className="flex flex-col gap-4 border-b theme-divider p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
@@ -751,7 +910,9 @@ export default function FakeEmail() {
                       ] as const
                     ).map(([label, value]) => (
                       <div key={label} className="min-w-0">
-                        <dt className="text-[11px] text-[var(--text-muted)]">{label}</dt>
+                        <dt className="text-[11px] text-[var(--text-muted)]">
+                          {label}
+                        </dt>
                         <dd className="mt-0.5 break-words text-sm text-[var(--text-primary)]">
                           {value || 'Not provided'}
                         </dd>

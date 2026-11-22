@@ -5,6 +5,7 @@ import axios from 'axios'
 import {
   AlertCircle,
   BadgeCheck,
+  FileText,
   LoaderCircle,
   MailSearch,
   MessageSquareText,
@@ -15,10 +16,18 @@ import {
 import { getCases, type Case } from '../../services/caseService'
 import {
   analyzeChatEmail,
+  analyzeChatEmailEvidence,
   type ChatEmailForensicsResponse,
 } from '../../services/aiAnalysisService'
+import {
+  getEvidenceByCase,
+  type Evidence,
+} from '../../services/evidenceService'
 
 const MAX_TEXT_LENGTH = 10_000
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+type InputMode = 'text' | 'evidence'
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -27,8 +36,10 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
     }
 
     const data: unknown = error.response.data
+
     if (typeof data === 'object' && data !== null && 'detail' in data) {
       const { detail } = data
+
       if (typeof detail === 'string') return detail
 
       if (Array.isArray(detail)) {
@@ -37,14 +48,18 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
             if (typeof item !== 'object' || item === null) return null
 
             const message =
-              'msg' in item && typeof item.msg === 'string' ? item.msg : null
+              'msg' in item && typeof item.msg === 'string'
+                ? item.msg
+                : null
+
             if (!message) return null
 
             const location =
               'loc' in item && Array.isArray(item.loc)
                 ? item.loc.filter(
                     (part): part is string | number =>
-                      typeof part === 'string' || typeof part === 'number',
+                      typeof part === 'string' ||
+                      typeof part === 'number',
                   )
                 : []
 
@@ -92,33 +107,56 @@ function formatProbability(value: number): string {
   return `${(value * 100).toFixed(2)}%`
 }
 
+function isTextEvidence(evidence: Evidence): boolean {
+  return evidence.original_filename.toLowerCase().endsWith('.txt')
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
 export default function ChatEmailForensics() {
   const [cases, setCases] = useState<Case[]>([])
   const [caseId, setCaseId] = useState('')
+
+  const [inputMode, setInputMode] = useState<InputMode>('text')
   const [text, setText] = useState('')
-  const [result, setResult] = useState<ChatEmailForensicsResponse | null>(null)
+
+  const [evidenceList, setEvidenceList] = useState<Evidence[]>([])
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState('')
+
+  const [result, setResult] =
+    useState<ChatEmailForensicsResponse | null>(null)
+
   const [casesError, setCasesError] = useState('')
   const [analysisError, setAnalysisError] = useState('')
+  const [evidenceError, setEvidenceError] = useState('')
+
   const [isLoadingCases, setIsLoadingCases] = useState(true)
+  const [isLoadingEvidence, setIsLoadingEvidence] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   const submissionLock = useRef(false)
 
+  // Load investigation cases
   useEffect(() => {
     let active = true
 
     getCases()
       .then((data) => {
         if (!active) return
+
         setCases(data)
         setCaseId(data[0] ? String(data[0].id) : '')
       })
       .catch((error: unknown) => {
-        if (active) {
-          setCasesError(
-            getApiErrorMessage(error, 'Your cases could not be loaded.'),
-          )
-        }
+        if (!active) return
+
+        setCasesError(
+          getApiErrorMessage(error, 'Your cases could not be loaded.'),
+        )
       })
       .finally(() => {
         if (active) setIsLoadingCases(false)
@@ -129,6 +167,56 @@ export default function ChatEmailForensics() {
     }
   }, [])
 
+  // Load TXT evidence whenever the case changes while evidence mode is active
+  useEffect(() => {
+    if (inputMode !== 'evidence' || !caseId) {
+      setEvidenceList([])
+      setSelectedEvidenceId('')
+      setEvidenceError('')
+      setIsLoadingEvidence(false)
+      return
+    }
+
+    let active = true
+
+    setIsLoadingEvidence(true)
+    setEvidenceError('')
+    setEvidenceList([])
+    setSelectedEvidenceId('')
+
+    getEvidenceByCase(Number(caseId))
+      .then((data) => {
+        if (!active) return
+
+        const textFiles = data.filter(
+          (item) =>
+            isTextEvidence(item) && item.file_size <= MAX_FILE_SIZE,
+        )
+
+        setEvidenceList(textFiles)
+        setSelectedEvidenceId(
+          textFiles.length ? String(textFiles[0].id) : '',
+        )
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+
+        setEvidenceError(
+          getApiErrorMessage(
+            error,
+            'Existing text evidence could not be loaded.',
+          ),
+        )
+      })
+      .finally(() => {
+        if (active) setIsLoadingEvidence(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [caseId, inputMode])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -138,17 +226,24 @@ export default function ChatEmailForensics() {
     setResult(null)
 
     if (!caseId) {
-      setAnalysisError('Select a case before analyzing conversation text.')
+      setAnalysisError('Select a case before analyzing.')
       return
     }
 
-    if (!text.trim()) {
-      setAnalysisError('Enter chat or email conversation text to analyze.')
-      return
+    if (inputMode === 'text') {
+      if (!text.trim()) {
+        setAnalysisError('Enter chat or email conversation text to analyze.')
+        return
+      }
+
+      if (text.length > MAX_TEXT_LENGTH) {
+        setAnalysisError('The conversation cannot exceed 10,000 characters.')
+        return
+      }
     }
 
-    if (text.length > MAX_TEXT_LENGTH) {
-      setAnalysisError('The conversation cannot exceed 10,000 characters.')
+    if (inputMode === 'evidence' && !selectedEvidenceId) {
+      setAnalysisError('Select a TXT evidence file to analyze.')
       return
     }
 
@@ -156,7 +251,14 @@ export default function ChatEmailForensics() {
     setIsAnalyzing(true)
 
     try {
-      const analysis = await analyzeChatEmail(Number(caseId), text)
+      const analysis =
+        inputMode === 'text'
+          ? await analyzeChatEmail(Number(caseId), text)
+          : await analyzeChatEmailEvidence(
+                Number(caseId),
+                Number(selectedEvidenceId),
+              )
+
       setResult(analysis)
     } catch (error) {
       setAnalysisError(
@@ -184,6 +286,7 @@ export default function ChatEmailForensics() {
     getCases()
       .then((data) => {
         setCases(data)
+
         setCaseId((current) =>
           data.some((caseItem) => String(caseItem.id) === current)
             ? current
@@ -200,7 +303,20 @@ export default function ChatEmailForensics() {
       .finally(() => setIsLoadingCases(false))
   }
 
-  const selectedCase = cases.find((caseItem) => String(caseItem.id) === caseId)
+  function changeMode(mode: InputMode) {
+    setInputMode(mode)
+    setResult(null)
+    setAnalysisError('')
+    setEvidenceError('')
+  }
+
+  const selectedCase = cases.find(
+    (caseItem) => String(caseItem.id) === caseId,
+  )
+
+  const selectedEvidence = evidenceList.find(
+    (item) => String(item.id) === selectedEvidenceId,
+  )
 
   return (
     <section className="mx-auto max-w-5xl space-y-6">
@@ -215,8 +331,8 @@ export default function ChatEmailForensics() {
         </h1>
 
         <p className="mt-1.5 max-w-2xl text-sm text-[var(--text-secondary)]">
-          Analyze pasted conversation text for spam patterns and save the
-          AI-assisted assessment to an investigation case.
+          Analyze conversation text for spam patterns and save the AI-assisted
+          assessment to an investigation case.
         </p>
       </header>
 
@@ -259,10 +375,7 @@ export default function ChatEmailForensics() {
       {/* Main Layout */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         {/* Input Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="theme-card p-5 sm:p-7"
-        >
+        <form onSubmit={handleSubmit} className="theme-card p-5 sm:p-7">
           {/* Form Header */}
           <div className="flex items-start gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#9b82e8] dark:text-[#b6a1f5]">
@@ -271,59 +384,97 @@ export default function ChatEmailForensics() {
 
             <div>
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                Conversation text
+                Conversation input
               </h2>
 
               <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-                Paste the chat or email message content for model assessment.
+                Enter conversation text or analyze an existing TXT evidence file.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 space-y-5">
-            {/* Case Selector */}
-            <div className="space-y-2">
-              <label
-                htmlFor="chat-email-case"
-                className="block text-sm font-medium text-[var(--text-primary)]"
-              >
-                Investigation case
-              </label>
+          {/* Case Selector */}
+          <div className="mt-6 space-y-2">
+            <label
+              htmlFor="chat-email-case"
+              className="block text-sm font-medium text-[var(--text-primary)]"
+            >
+              Investigation case
+            </label>
 
-              <select
-                id="chat-email-case"
-                value={caseId}
-                onChange={(event) => {
-                  setCaseId(event.target.value)
-                  setResult(null)
-                  setAnalysisError('')
-                }}
-                disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
-                required
-                className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[#9b82e8] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
-              >
-                {cases.length === 0 && (
-                  <option value="">
-                    {isLoadingCases ? 'Loading cases…' : 'No cases available'}
-                  </option>
-                )}
-
-                {cases.map((caseItem) => (
-                  <option key={caseItem.id} value={caseItem.id}>
-                    {caseItem.case_number} — {caseItem.title}
-                  </option>
-                ))}
-              </select>
-
-              {selectedCase && (
-                <p className="text-xs text-[var(--text-muted)]">
-                  A successful analysis is saved to this case automatically.
-                </p>
+            <select
+              id="chat-email-case"
+              value={caseId}
+              onChange={(event) => {
+                setCaseId(event.target.value)
+                setResult(null)
+                setAnalysisError('')
+              }}
+              disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
+              required
+              className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[#9b82e8] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
+            >
+              {cases.length === 0 && (
+                <option value="">
+                  {isLoadingCases ? 'Loading cases…' : 'No cases available'}
+                </option>
               )}
-            </div>
 
-            {/* Conversation Text */}
-            <div className="space-y-2">
+              {/* FIXED JSX: map closing parentheses */}
+              {cases.map((caseItem) => (
+                <option key={caseItem.id} value={caseItem.id}>
+                  {caseItem.case_number} — {caseItem.title}
+                </option>
+              ))}
+            </select>
+
+            {selectedCase && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Successful analysis is saved to this case automatically.
+              </p>
+            )}
+          </div>
+
+          {/* Input Mode Selector */}
+          <div className="mt-5 space-y-2">
+            <p className="text-sm font-medium text-[var(--text-primary)]">
+              Input method
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => changeMode('text')}
+                disabled={isAnalyzing}
+                className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium transition disabled:opacity-50 ${
+                  inputMode === 'text'
+                    ? 'border-[#9b82e8] bg-[#9b82e8]/10 text-[#9b82e8] dark:text-[#b6a1f5]'
+                    : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent)]'
+                }`}
+              >
+                <MessageSquareText size={16} aria-hidden="true" />
+                Enter text
+              </button>
+
+              <button
+                type="button"
+                onClick={() => changeMode('evidence')}
+                disabled={isAnalyzing}
+                className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium transition disabled:opacity-50 ${
+                  inputMode === 'evidence'
+                    ? 'border-[#9b82e8] bg-[#9b82e8]/10 text-[#9b82e8] dark:text-[#b6a1f5]'
+                    : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent)]'
+                }`}
+              >
+                <FileText size={16} aria-hidden="true" />
+                Existing evidence
+              </button>
+            </div>
+          </div>
+
+          {/* Manual Text Input */}
+          {inputMode === 'text' && (
+            <div className="mt-5 space-y-2">
               <label
                 htmlFor="chat-email-text"
                 className="block text-sm font-medium text-[var(--text-primary)]"
@@ -356,11 +507,104 @@ export default function ChatEmailForensics() {
                 </span>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Existing TXT Evidence */}
+          {inputMode === 'evidence' && (
+            <div className="mt-5 space-y-3">
+              <label
+                htmlFor="chat-email-evidence"
+                className="block text-sm font-medium text-[var(--text-primary)]"
+              >
+                Existing TXT evidence
+              </label>
+
+              {isLoadingEvidence ? (
+                <div className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] px-4 py-4 text-sm text-[var(--text-secondary)]">
+                  <LoaderCircle size={16} className="animate-spin" />
+                  Loading case evidence…
+                </div>
+              ) : evidenceError ? (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-500 dark:text-red-300"
+                >
+                  {evidenceError}
+                </div>
+              ) : evidenceList.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[var(--border-color)] px-4 py-5 text-center">
+                  <FileText
+                    size={24}
+                    className="mx-auto text-[var(--text-muted)]"
+                  />
+
+                  <p className="mt-2 text-sm font-medium text-[var(--text-primary)]">
+                    No TXT evidence available
+                  </p>
+
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    Upload a TXT file to this case first. Files must be 10 MB or
+                    smaller.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  id="chat-email-evidence"
+                  value={selectedEvidenceId}
+                  onChange={(event) => {
+                    setSelectedEvidenceId(event.target.value)
+                    setResult(null)
+                    setAnalysisError('')
+                  }}
+                  disabled={isAnalyzing}
+                  className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[#9b82e8] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
+                >
+                  {evidenceList.map((evidence) => (
+                    <option key={evidence.id} value={evidence.id}>
+                      {evidence.original_filename} —{' '}
+                      {formatFileSize(evidence.file_size)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Selected Evidence Details */}
+              {selectedEvidence && (
+                <div className="rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/[0.05] p-4">
+                  <div className="flex items-start gap-3">
+                    <FileText
+                      size={18}
+                      className="mt-0.5 shrink-0 text-[#9b82e8] dark:text-[#b6a1f5]"
+                    />
+
+                    <div className="min-w-0">
+                      <p className="break-all text-sm font-medium text-[var(--text-primary)]">
+                        {selectedEvidence.original_filename}
+                      </p>
+
+                      <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                        {formatFileSize(selectedEvidence.file_size)} · TXT file
+                      </p>
+
+                      <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                        Stored evidence · Integrity verification performed by
+                        backend
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                The backend verifies evidence ownership, case association, file
+                type, size, and SHA-256 integrity before analysis.
+              </p>
+            </div>
+          )}
 
           {/* Form Actions */}
           <div className="mt-6 flex flex-col-reverse gap-3 border-t border-[var(--border-color)] pt-5 sm:flex-row sm:justify-end">
-            {(result || text) && (
+            {(result || text || selectedEvidenceId) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
@@ -378,8 +622,12 @@ export default function ChatEmailForensics() {
                 isAnalyzing ||
                 isLoadingCases ||
                 !caseId ||
-                !text.trim() ||
-                text.length > MAX_TEXT_LENGTH
+                (inputMode === 'text' &&
+                  (!text.trim() || text.length > MAX_TEXT_LENGTH)) ||
+                (inputMode === 'evidence' &&
+                  (isLoadingEvidence ||
+                    !selectedEvidenceId ||
+                    !!evidenceError))
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b82e8]/30 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2.5"
             >
@@ -393,7 +641,11 @@ export default function ChatEmailForensics() {
                 <ScanSearch size={16} aria-hidden="true" />
               )}
 
-              {isAnalyzing ? 'Analyzing conversation…' : 'Analyze conversation'}
+              {isAnalyzing
+                ? 'Analyzing conversation…'
+                : inputMode === 'evidence'
+                  ? 'Analyze evidence'
+                  : 'Analyze conversation'}
             </button>
           </div>
         </form>
@@ -438,9 +690,10 @@ export default function ChatEmailForensics() {
             </div>
 
             <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-              This endpoint receives conversation text only. It does not inspect
-              sender headers, attachments, or .eml metadata; no file upload is
-              performed.
+              This module analyzes message text using the SMS spam
+              classification model. It does not inspect email headers,
+              attachments, or other metadata. Email-specific model performance
+              has not been evaluated.
             </p>
           </div>
 
@@ -468,10 +721,7 @@ export default function ChatEmailForensics() {
 
       {/* Analysis Result */}
       {result && (
-        <section
-          aria-live="polite"
-          className="theme-card overflow-hidden"
-        >
+        <section aria-live="polite" className="theme-card overflow-hidden">
           {/* Result Header */}
           <div className="flex flex-col gap-4 border-b border-[var(--border-color)] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
@@ -524,7 +774,10 @@ export default function ChatEmailForensics() {
                 <div
                   className="h-full rounded-full bg-[#9b82e8]"
                   style={{
-                    width: `${Math.min(100, Math.max(0, result.confidence * 100))}%`,
+                    width: `${Math.min(
+                      100,
+                      Math.max(0, result.confidence * 100),
+                    )}%`,
                   }}
                 />
               </div>

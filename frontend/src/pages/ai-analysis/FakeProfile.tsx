@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import axios from 'axios'
@@ -7,6 +6,7 @@ import {
   BadgeCheck,
   CircleHelp,
   FileSpreadsheet,
+  Hash,
   LoaderCircle,
   RotateCcw,
   ScanSearch,
@@ -16,9 +16,11 @@ import {
 } from 'lucide-react'
 
 import { getCases, type Case } from '../../services/caseService'
+import { getEvidenceByCase } from '../../services/evidenceService'
 import {
   analyzeFakeProfile,
   analyzeFakeProfileCsv,
+  analyzeFakeProfileEvidence,
   type FakeProfileRequest,
   type FakeProfileResponse,
   type FakeProfileBatchResponse,
@@ -294,6 +296,13 @@ export default function FakeProfile() {
   const [batchResult, setBatchResult] =
     useState<FakeProfileBatchResponse | null>(null)
 
+  // Existing evidence states
+  const [csvMode, setCsvMode] = useState<'upload' | 'existing'>('upload')
+  const [evidenceList, setEvidenceList] = useState<any[]>([])
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState('')
+  const [isLoadingEvidence, setIsLoadingEvidence] = useState(false)
+  const [evidenceError, setEvidenceError] = useState('')
+
   const [isUploading, setIsUploading] = useState(false)
 
   const [casesError, setCasesError] = useState('')
@@ -335,6 +344,53 @@ export default function FakeProfile() {
       active = false
     }
   }, [])
+
+  // =========================================================
+  // LOAD EXISTING CASE CSV EVIDENCE
+  // =========================================================
+
+  useEffect(() => {
+    if (!caseId) {
+      setEvidenceList([])
+      setSelectedEvidenceId('')
+      return
+    }
+
+    let active = true
+
+    setIsLoadingEvidence(true)
+    setEvidenceError('')
+    setEvidenceList([])
+    setSelectedEvidenceId('')
+
+    getEvidenceByCase(Number(caseId))
+      .then((data) => {
+        if (!active) return
+
+        const csvEvidence = data.filter((item: any) =>
+          item.original_filename?.toLowerCase().endsWith('.csv'),
+        )
+
+        setEvidenceList(csvEvidence)
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setEvidenceError(
+            getApiErrorMessage(
+              error,
+              'Could not load existing evidence for this case.',
+            ),
+          )
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingEvidence(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [caseId])
 
   // =========================================================
   // CLEAR PREVIOUS RESULTS
@@ -481,7 +537,7 @@ export default function FakeProfile() {
   }
 
   // =========================================================
-  // CSV BATCH ANALYSIS
+  // CSV BATCH ANALYSIS - UPLOAD OR EXISTING EVIDENCE
   // =========================================================
 
   async function handleCsvSubmit(event: FormEvent<HTMLFormElement>) {
@@ -496,8 +552,13 @@ export default function FakeProfile() {
       return
     }
 
-    if (!csvFile) {
+    if (csvMode === 'upload' && !csvFile) {
       setAnalysisError('Please select a CSV file before uploading.')
+      return
+    }
+
+    if (csvMode === 'existing' && !selectedEvidenceId) {
+      setAnalysisError('Please select an existing CSV evidence file.')
       return
     }
 
@@ -505,7 +566,14 @@ export default function FakeProfile() {
     setIsUploading(true)
 
     try {
-      const analysis = await analyzeFakeProfileCsv(Number(caseId), csvFile)
+      const analysis =
+        csvMode === 'upload'
+          ? await analyzeFakeProfileCsv(Number(caseId), csvFile!)
+          : await analyzeFakeProfileEvidence(
+                Number(caseId),
+                Number(selectedEvidenceId),
+              )
+
       setBatchResult(analysis)
       setSuccessMessage(analysis.message)
     } catch (error) {
@@ -528,6 +596,8 @@ export default function FakeProfile() {
   function resetAnalysis() {
     setProfile(EMPTY_PROFILE)
     setCsvFile(null)
+    setCsvMode('upload')
+    setSelectedEvidenceId('')
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -644,7 +714,7 @@ export default function FakeProfile() {
       )}
 
       {/* =====================================================
-          CSV BATCH UPLOAD
+          CSV BATCH ANALYSIS
       ====================================================== */}
 
       <div className="theme-card p-5 sm:p-7">
@@ -658,86 +728,232 @@ export default function FakeProfile() {
               CSV Batch Analysis
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-              Upload a CSV containing multiple social media profiles to analyze them
-              together.
+              Upload a CSV containing multiple social media profiles or analyze
+              previously uploaded case evidence.
             </p>
           </div>
         </div>
 
         <form onSubmit={handleCsvSubmit} className="mt-6 space-y-4">
-          {/* FILE INPUT */}
-          <div>
-            <label
-              htmlFor="fake-profile-csv"
-              className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+          {/* INPUT MODE */}
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-[var(--bg-input)] p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setCsvMode('upload')
+                setCsvFile(null)
+                setSelectedEvidenceId('')
+                clearResults()
+                if (fileInputRef.current) fileInputRef.current.value = ''
+              }}
+              disabled={isUploading || isAnalyzing}
+              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                csvMode === 'upload'
+                  ? 'bg-[#9b82e8] text-white shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]'
+              }`}
             >
-              Upload profile CSV
-            </label>
+              <UploadCloud size={15} className="mr-2 inline" />
+              Upload CSV
+            </button>
 
-            <div className="rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--bg-input)] p-5 transition hover:border-[#9b82e8]/50">
-              <label
-                htmlFor="fake-profile-csv"
-                className="flex cursor-pointer flex-col items-center justify-center gap-3 text-center"
-              >
-                <span className="flex size-12 items-center justify-center rounded-xl bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
-                  <UploadCloud size={24} aria-hidden="true" />
-                </span>
-
-                <span className="text-sm font-medium text-[var(--text-primary)]">
-                  Click to select a CSV file
-                </span>
-
-                <span className="text-xs text-[var(--text-muted)]">
-                  CSV format only · Maximum file size 5 MB
-                </span>
-              </label>
-
-              <input
-                ref={fileInputRef}
-                id="fake-profile-csv"
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleCsvChange}
-                disabled={isUploading || isAnalyzing}
-                className="sr-only"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCsvMode('existing')
+                setCsvFile(null)
+                if (fileInputRef.current) fileInputRef.current.value = ''
+                clearResults()
+              }}
+              disabled={isUploading || isAnalyzing}
+              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                csvMode === 'existing'
+                  ? 'bg-[#9b82e8] text-white shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]'
+              }`}
+            >
+              <FileSpreadsheet size={15} className="mr-2 inline" />
+              Existing Evidence
+            </button>
           </div>
 
-          {/* SELECTED FILE */}
-          {csvFile && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/[0.06] p-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <FileSpreadsheet
-                  size={20}
-                  className="shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
-                  aria-hidden="true"
-                />
+          {/* UPLOAD CSV */}
+          {csvMode === 'upload' && (
+            <>
+              <div>
+                <label
+                  htmlFor="fake-profile-csv"
+                  className="mb-2 block text-sm font-medium text-[var(--text-primary)]"
+                >
+                  Upload profile CSV
+                </label>
 
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                    {csvFile.name}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    {(csvFile.size / 1024).toFixed(2)} KB
-                  </p>
+                <div className="rounded-xl border border-dashed border-[var(--border-color)] bg-[var(--bg-input)] p-5 transition hover:border-[#9b82e8]/50">
+                  <label
+                    htmlFor="fake-profile-csv"
+                    className="flex cursor-pointer flex-col items-center justify-center gap-3 text-center"
+                  >
+                    <span className="flex size-12 items-center justify-center rounded-xl bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
+                      <UploadCloud size={24} aria-hidden="true" />
+                    </span>
+
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      Click to select a CSV file
+                    </span>
+
+                    <span className="text-xs text-[var(--text-muted)]">
+                      CSV format only · Maximum file size 5 MB
+                    </span>
+                  </label>
+
+                  <input
+                    ref={fileInputRef}
+                    id="fake-profile-csv"
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={handleCsvChange}
+                    disabled={isUploading || isAnalyzing}
+                    className="sr-only"
+                  />
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setCsvFile(null)
-                  setBatchResult(null)
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = ''
-                  }
-                }}
-                disabled={isUploading}
-                className="text-xs font-medium text-red-600 transition hover:text-red-500 disabled:opacity-50 dark:text-red-300 dark:hover:text-red-200"
-              >
-                Remove
-              </button>
+              {/* SELECTED UPLOAD FILE */}
+              {csvFile && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/[0.06] p-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <FileSpreadsheet
+                      size={20}
+                      className="shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
+                      aria-hidden="true"
+                    />
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                        {csvFile.name}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {(csvFile.size / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCsvFile(null)
+                      setBatchResult(null)
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
+                      }
+                    }}
+                    disabled={isUploading}
+                    className="text-xs font-medium text-red-600 transition hover:text-red-500 disabled:opacity-50 dark:text-red-300"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* EXISTING EVIDENCE */}
+          {csvMode === 'existing' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label
+                  htmlFor="fake-profile-existing-evidence"
+                  className="block text-sm font-medium text-[var(--text-primary)]"
+                >
+                  Select existing CSV evidence
+                </label>
+
+                <select
+                  id="fake-profile-existing-evidence"
+                  value={selectedEvidenceId}
+                  onChange={(event) => {
+                    setSelectedEvidenceId(event.target.value)
+                    clearResults()
+                  }}
+                  disabled={isLoadingEvidence || isUploading || isAnalyzing}
+                  className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-4 focus:ring-[#9b82e8]/10 disabled:opacity-60"
+                >
+                  <option value="">
+                    {isLoadingEvidence
+                      ? 'Loading evidence…'
+                      : evidenceList.length
+                        ? 'Choose a CSV evidence file'
+                        : 'No CSV evidence found for this case'}
+                  </option>
+
+                  {evidenceList.map((item: any) => (
+                    <option key={item.id} value={item.id}>
+                      #{item.id} — {item.original_filename}
+                    </option>
+                  ))}
+                </select>
+
+                {evidenceError && (
+                  <p className="text-xs text-red-500">{evidenceError}</p>
+                )}
+
+                {!isLoadingEvidence &&
+                  !evidenceError &&
+                  evidenceList.length === 0 && (
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Upload a CSV file to the Evidence section of this case first.
+                    </p>
+                  )}
+              </div>
+
+              {/* SELECTED EVIDENCE DETAILS */}
+              {selectedEvidenceId &&
+                (() => {
+                  const selectedEvidence = evidenceList.find(
+                    (item: any) => String(item.id) === selectedEvidenceId,
+                  )
+
+                  if (!selectedEvidence) return null
+
+                  return (
+                    <div className="rounded-xl border border-[#9b82e8]/25 bg-[#9b82e8]/[0.06] p-4">
+                      <div className="flex items-start gap-3">
+                        <FileSpreadsheet
+                          size={20}
+                          className="mt-0.5 shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                          <p className="break-all text-sm font-medium text-[var(--text-primary)]">
+                            {selectedEvidence.original_filename}
+                          </p>
+
+                          <p className="mt-1 text-xs text-[var(--text-muted)]">
+                            {(selectedEvidence.file_size / 1024).toFixed(2)} KB
+                          </p>
+
+                          <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                            <BadgeCheck size={14} />
+                            Stored evidence · SHA-256 verification performed by backend
+                          </div>
+
+                          {selectedEvidence.sha256_hash && (
+                            <div className="mt-3">
+                              <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+                                <Hash size={12} />
+                                SHA-256
+                              </p>
+
+                              <p className="break-all rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] p-2 font-mono text-[10px] leading-relaxed text-[var(--text-secondary)]">
+                                {selectedEvidence.sha256_hash}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
             </div>
           )}
 
@@ -760,16 +976,27 @@ export default function FakeProfile() {
                 isAnalyzing ||
                 isLoadingCases ||
                 !caseId ||
-                !csvFile
+                (csvMode === 'upload' && !csvFile) ||
+                (csvMode === 'existing' &&
+                  (!selectedEvidenceId || isLoadingEvidence))
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b82e8]/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isUploading ? (
                 <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+              ) : csvMode === 'existing' ? (
+                <ScanSearch size={16} aria-hidden="true" />
               ) : (
                 <UploadCloud size={16} aria-hidden="true" />
               )}
-              {isUploading ? 'Analyzing CSV…' : 'Upload & Analyze CSV'}
+
+              {isUploading
+                ? csvMode === 'existing'
+                  ? 'Analyzing Evidence…'
+                  : 'Analyzing CSV…'
+                : csvMode === 'existing'
+                  ? 'Analyze Existing Evidence'
+                  : 'Upload & Analyze CSV'}
             </button>
           </div>
         </form>
@@ -806,18 +1033,9 @@ export default function FakeProfile() {
 
           {/* SUMMARY CARDS */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <SummaryCard
-              label="Total profiles"
-              value={batchResult.total_profiles}
-            />
-            <SummaryCard
-              label="Fake profiles"
-              value={batchResult.fake_profiles}
-            />
-            <SummaryCard
-              label="Genuine profiles"
-              value={batchResult.genuine_profiles}
-            />
+            <SummaryCard label="Total profiles" value={batchResult.total_profiles} />
+            <SummaryCard label="Fake profiles" value={batchResult.fake_profiles} />
+            <SummaryCard label="Genuine profiles" value={batchResult.genuine_profiles} />
             <SummaryCard
               label="Fake profile rate"
               value={formatBatchPercentage(batchResult.fake_percentage)}
@@ -926,10 +1144,7 @@ export default function FakeProfile() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
         {/* MANUAL PROFILE FORM */}
-        <form
-          onSubmit={handleSubmit}
-          className="theme-card p-5 sm:p-7"
-        >
+        <form onSubmit={handleSubmit} className="theme-card p-5 sm:p-7">
           <div className="flex items-start gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/10 text-[#7954c8] dark:text-[#b6a1f5]">
               <UserRoundSearch size={21} aria-hidden="true" />
@@ -1275,7 +1490,7 @@ export default function FakeProfile() {
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border-color)]">
                   <div
                     className="h-full rounded-full bg-[#9b82e8]"
-                    style={{
+style={{
                       width: `${Math.min(100, Math.max(0, result.confidence * 100))}%`,
                     }}
                   />

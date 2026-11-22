@@ -2,6 +2,28 @@
 import { api } from './api'
 
 // =========================================================
+// SHARED MULTIPART CONFIGURATION
+// =========================================================
+
+const multipartConfig = {
+  headers: {
+    'Content-Type': null,
+  },
+}
+
+function createFileFormData(file: File): FormData {
+  const formData = new FormData()
+  formData.append('file', file)
+  return formData
+}
+
+function createEvidenceFormData(evidenceId: number): FormData {
+  const formData = new FormData()
+  formData.append('evidence_id', String(evidenceId))
+  return formData
+}
+
+// =========================================================
 // PHISHING URL ANALYSIS
 // =========================================================
 
@@ -42,8 +64,6 @@ export interface FakeProfileResponse {
   severity: string
   message: string
 }
-
-// Fake Profile CSV batch-analysis interfaces
 
 export interface FakeProfileBatchResult {
   row_number: number
@@ -257,8 +277,6 @@ export interface CreditCardFraudResponse {
   message: string
 }
 
-// Credit Card Fraud CSV batch-analysis interfaces
-
 export interface CreditCardFraudBatchTransaction {
   transaction_index: number
   prediction: string
@@ -351,8 +369,6 @@ export interface NetworkIntrusionResponse {
   dataset: string
 }
 
-// Network Intrusion CSV batch-analysis interfaces
-
 export interface NetworkIntrusionBatchTransaction {
   connection_index: number
   prediction: string
@@ -434,8 +450,6 @@ export interface ServerLogAnalysisResponse {
   message: string
 }
 
-// Server Log CSV batch-analysis interfaces
-
 export interface ServerLogBatchBlock {
   block_index: number
   block_id: string | null
@@ -451,6 +465,11 @@ export interface ServerLogBatchResponse {
   case_id: number
   finding_id: number
   filename: string
+
+  // NEW: Source of the batch analysis
+  input_source?: 'csv_upload' | 'existing_evidence'
+  evidence_id?: number | null
+
   total_blocks: number
   anomaly_blocks: number
   normal_blocks: number
@@ -496,21 +515,28 @@ export async function analyzeServerLog(
   return response.data
 }
 
-// Server Log CSV batch analysis
-
 export async function analyzeServerLogCsv(
   caseId: number,
   file: File,
 ): Promise<ServerLogBatchResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<ServerLogBatchResponse>(
     `/api/server-log-analysis/cases/${caseId}/analyze-csv`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
+  )
+
+  return response.data
+}
+
+// Analyze existing CSV evidence without uploading it again
+export async function analyzeServerLogEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<ServerLogBatchResponse> {
+  const response = await api.post<ServerLogBatchResponse>(
+    `/api/server-log-analysis/cases/${caseId}/analyze-csv`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -536,15 +562,24 @@ export async function analyzeFakeEmailFile(
   caseId: number,
   file: File,
 ): Promise<FakeEmailFileResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<FakeEmailFileResponse>(
     `/api/fake-email/cases/${caseId}/analyze-eml`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
+  )
+
+  return response.data
+}
+
+// Analyze an existing EML evidence item (no re-upload)
+export async function analyzeFakeEmailEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<FakeEmailFileResponse> {
+  const response = await api.post<FakeEmailFileResponse>(
+    `/api/fake-email/cases/${caseId}/analyze-eml`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -566,21 +601,27 @@ export async function analyzeNetworkIntrusion(
   return response.data
 }
 
-// Network Intrusion CSV batch analysis
-
 export async function analyzeNetworkIntrusionCsv(
   caseId: number,
   file: File,
 ): Promise<NetworkIntrusionBatchResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<NetworkIntrusionBatchResponse>(
     `/api/network-intrusion/cases/${caseId}/analyze-csv`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
+  )
+
+  return response.data
+}
+
+export async function analyzeNetworkIntrusionEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<NetworkIntrusionBatchResponse> {
+  const response = await api.post<NetworkIntrusionBatchResponse>(
+    `/api/network-intrusion/cases/${caseId}/analyze-csv`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -596,27 +637,34 @@ export async function analyzeCreditCardFraud(
 ): Promise<CreditCardFraudResponse> {
   const response = await api.post<CreditCardFraudResponse>(
     `/api/credit-card-fraud/cases/${caseId}/predict`,
-    { features },
+    { features } satisfies CreditCardFraudRequest,
   )
 
   return response.data
 }
 
-// Credit Card Fraud CSV batch analysis
-
 export async function analyzeCreditCardFraudCsv(
   caseId: number,
   file: File,
 ): Promise<CreditCardFraudBatchResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<CreditCardFraudBatchResponse>(
     `/api/credit-card-fraud/cases/${caseId}/analyze-csv`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
+  )
+
+  return response.data
+}
+
+// Analyze an existing CSV evidence item (no re-upload)
+export async function analyzeCreditCardFraudEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<CreditCardFraudBatchResponse> {
+  const response = await api.post<CreditCardFraudBatchResponse>(
+    `/api/credit-card-fraud/cases/${caseId}/analyze-csv`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -632,7 +680,20 @@ export async function analyzeChatEmail(
 ): Promise<ChatEmailForensicsResponse> {
   const response = await api.post<ChatEmailForensicsResponse>(
     `/api/chat-email-forensics/cases/${caseId}/predict`,
-    { text },
+    { text } satisfies ChatEmailForensicsRequest,
+  )
+
+  return response.data
+}
+
+export async function analyzeChatEmailEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<ChatEmailForensicsResponse> {
+  const response = await api.post<ChatEmailForensicsResponse>(
+    `/api/chat-email-forensics/cases/${caseId}/predict-evidence`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -646,15 +707,10 @@ export async function analyzeApk(
   caseId: number,
   file: File,
 ): Promise<ApkAnalysisResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<ApkAnalysisResponse>(
     `/api/apk-analysis/cases/${caseId}/predict`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
   )
 
   return response.data
@@ -668,15 +724,23 @@ export async function analyzeImageForgery(
   caseId: number,
   file: File,
 ): Promise<ImageForgeryResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<ImageForgeryResponse>(
     `/api/image-forgery/cases/${caseId}/predict`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
+  )
+
+  return response.data
+}
+
+export async function analyzeImageForgeryEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<ImageForgeryResponse> {
+  const response = await api.post<ImageForgeryResponse>(
+    `/api/image-forgery/cases/${caseId}/predict`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -692,7 +756,21 @@ export async function analyzeScamMessage(
 ): Promise<ScamMessageResponse> {
   const response = await api.post<ScamMessageResponse>(
     `/api/scam-detection/cases/${caseId}/predict`,
-    { text },
+    { text } satisfies ScamMessageRequest,
+  )
+
+  return response.data
+}
+
+// Analyze an existing TXT evidence item (no re-upload)
+export async function analyzeScamMessageEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<ScamMessageResponse> {
+  const response = await api.post<ScamMessageResponse>(
+    `/api/scam-detection/cases/${caseId}/predict-evidence`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data
@@ -722,15 +800,24 @@ export async function analyzeFakeProfileCsv(
   caseId: number,
   file: File,
 ): Promise<FakeProfileBatchResponse> {
-  const formData = new FormData()
-  formData.append('file', file)
-
   const response = await api.post<FakeProfileBatchResponse>(
     `/api/fake-profile/cases/${caseId}/analyze-csv`,
-    formData,
-    {
-      headers: { 'Content-Type': null },
-    },
+    createFileFormData(file),
+    multipartConfig,
+  )
+
+  return response.data
+}
+
+// Analyze an existing CSV evidence item (no re-upload)
+export async function analyzeFakeProfileEvidence(
+  caseId: number,
+  evidenceId: number,
+): Promise<FakeProfileBatchResponse> {
+  const response = await api.post<FakeProfileBatchResponse>(
+    `/api/fake-profile/cases/${caseId}/analyze-csv`,
+    createEvidenceFormData(evidenceId),
+    multipartConfig,
   )
 
   return response.data

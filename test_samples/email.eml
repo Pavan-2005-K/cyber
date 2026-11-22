@@ -1,0 +1,21 @@
+From: Security Alert <security-alert@secure-login-check.com>
+To: user@example.com
+Reply-To: verify-account@secure-login-check.com
+Return-Path: bounce@unknown-mailer.net
+Subject: Urgent: Your Account Will Be Suspended
+Date: Sun, 22 Nov 2026 10:30:00 +0530
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Dear User,
+
+We detected suspicious activity on your account. Your account will be suspended within 24 hours unless you verify your identity immediately.
+
+Click the link below to confirm your account and prevent suspension:
+
+http://secure-login-check.com/verify-account
+
+Failure to verify will result in permanent account termination.
+
+Thank you,
+Security Support Team

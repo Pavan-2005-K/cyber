@@ -20,14 +20,14 @@ import numpy as np
 import pandas as pd
 from PIL import Image, UnidentifiedImageError
 
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from phishing_features import extract_url_features
 from profile_features import extract_profile_features
 from apk_features import extract_apk_features
-
+from app.services.ai_evidence_service import get_verified_case_evidence
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.rate_limiter import limiter
@@ -1021,65 +1021,128 @@ async def analyze_eml(file: UploadFile = File(...)):
 @app.post("/api/fake-email/cases/{case_id}/analyze-eml")
 async def analyze_eml_for_case(
     case_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    evidence_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    filename = ""
+    raw_data = b""
+
+    max_size = 5 * 1024 * 1024
+
     try:
-        if not file.filename or not file.filename.lower().endswith(".eml"):
+        # =================================================
+        # INPUT VALIDATION
+        # =================================================
+
+        # Exactly one source must be provided.
+        if (file is None) == (evidence_id is None):
             raise HTTPException(
                 status_code=400,
-                detail="Please upload an .eml email file.",
+                detail="Provide either an uploaded file or an evidence ID.",
             )
 
-        max_size = 5 * 1024 * 1024
-        raw_data = await file.read(max_size + 1)
+        # =================================================
+        # OPTION 1: EXISTING CASE EVIDENCE
+        # =================================================
 
-        if not raw_data:
-            raise HTTPException(
-                status_code=400,
-                detail="The uploaded file is empty.",
+        if evidence_id is not None:
+            raw_data, filename = get_verified_case_evidence(
+                db=db,
+                case_id=case_id,
+                evidence_id=evidence_id,
+                user_id=current_user.id,
+                max_size=max_size,
+                allowed_extensions={".eml"},
             )
 
-        if len(raw_data) > max_size:
-            raise HTTPException(
-                status_code=413,
-                detail="Email file must be 5 MB or smaller.",
-            )
+        # =================================================
+        # OPTION 2: NEW FILE UPLOAD (EXISTING BEHAVIOR)
+        # =================================================
+
+        else:
+            if not file.filename or not file.filename.lower().endswith(".eml"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please upload an .eml email file.",
+                )
+
+            filename = Path(file.filename).name
+
+            raw_data = await file.read(max_size + 1)
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The uploaded file is empty.",
+                )
+
+            if len(raw_data) > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Email file must be 5 MB or smaller.",
+                )
+
+        # =================================================
+        # EMAIL PARSING
+        # =================================================
 
         try:
-            message = BytesParser(policy=policy.default).parsebytes(raw_data)
+            message = BytesParser(
+                policy=policy.default
+            ).parsebytes(raw_data)
+
         except Exception as exc:
-            print(f"Case-linked email parsing failed: {type(exc).__name__}")
+            print(
+                f"Case-linked email parsing failed: "
+                f"{type(exc).__name__}"
+            )
+
             raise HTTPException(
                 status_code=400,
                 detail="The email file could not be parsed.",
             ) from exc
+
+        # =================================================
+        # EXTRACT EMAIL HEADERS
+        # =================================================
 
         subject = str(message.get("subject", ""))
         sender = str(message.get("from", ""))
         recipient = str(message.get("to", ""))
         reply_to = str(message.get("reply-to", ""))
         return_path = str(message.get("return-path", ""))
+
+        # =================================================
+        # EXTRACT PLAIN TEXT BODY
+        # =================================================
+
         body_parts = []
 
         if message.is_multipart():
             for part in message.walk():
+
                 if part.get_content_disposition() == "attachment":
                     continue
 
                 if part.get_content_type() == "text/plain":
                     try:
                         content = part.get_content()
+
                         if isinstance(content, str):
                             body_parts.append(content)
+
                     except (LookupError, UnicodeDecodeError):
                         continue
+
         elif message.get_content_type() == "text/plain":
             try:
                 content = message.get_content()
+
                 if isinstance(content, str):
                     body_parts.append(content)
+
             except (LookupError, UnicodeDecodeError):
                 pass
 
@@ -1094,32 +1157,59 @@ async def analyze_eml_for_case(
                 ),
             )
 
+        # =================================================
+        # MODEL PREDICTION
+        # =================================================
+
         try:
             phishing_probability = float(
                 email_model.predict_proba([body_text])[0][1]
             )
+
         except Exception as exc:
-            print(f"Case-linked email analysis failed: {type(exc).__name__}")
+            print(
+                f"Case-linked email analysis failed: "
+                f"{type(exc).__name__}"
+            )
+
             raise HTTPException(
                 status_code=500,
                 detail="Email analysis failed.",
             ) from exc
 
-        is_phishing = phishing_probability >= EMAIL_PHISHING_THRESHOLD
-        prediction = "Phishing" if is_phishing else "Safe"
-        confidence = (
-            phishing_probability if is_phishing else 1.0 - phishing_probability
+        is_phishing = (
+            phishing_probability >= EMAIL_PHISHING_THRESHOLD
         )
+
+        prediction = "Phishing" if is_phishing else "Safe"
+
+        confidence = (
+            phishing_probability
+            if is_phishing
+            else 1.0 - phishing_probability
+        )
+
     except HTTPException:
         raise
+
     except Exception as exc:
-        print(f"Case-linked email processing failed: {type(exc).__name__}")
+        print(
+            f"Case-linked email processing failed: "
+            f"{type(exc).__name__}"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Email analysis failed.",
         ) from exc
+
     finally:
-        await file.close()
+        if file is not None:
+            await file.close()
+
+    # =====================================================
+    # SEVERITY CALCULATION
+    # =====================================================
 
     if is_phishing:
         if confidence >= 0.9:
@@ -1132,6 +1222,10 @@ async def analyze_eml_for_case(
             severity = "LOW"
     else:
         severity = "LOW" if confidence >= 0.75 else "MEDIUM"
+
+    # =====================================================
+    # SAVE FINDING
+    # =====================================================
 
     try:
         finding = save_detection_finding(
@@ -1151,30 +1245,42 @@ async def analyze_eml_for_case(
                     "Headers are extracted but not authenticated."
                 ),
                 "warning": (
-                    "This model-based estimate is not definitive proof of phishing. "
-                    "Extracted sender and routing headers are not verified."
+                    "This model-based estimate is not definitive proof "
+                    "of phishing. Extracted sender and routing headers "
+                    "are not verified."
                 ),
             },
         )
+
     except ValueError as exc:
         raise HTTPException(
             status_code=404,
             detail="Case not found or access denied.",
         ) from exc
+
     except HTTPException:
         raise
+
     except Exception as exc:
-        print(f"Unable to save case-linked email finding: {type(exc).__name__}")
+        print(
+            f"Unable to save case-linked email finding: "
+            f"{type(exc).__name__}"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Unable to save email analysis finding.",
         ) from exc
 
+    # =====================================================
+    # RESPONSE
+    # =====================================================
+
     return {
         "module": "Fake Email Detection",
         "case_id": case_id,
         "finding_id": finding.id,
-        "filename": Path(file.filename).name,
+        "filename": filename,
         "email_headers": {
             "subject": subject,
             "from": sender,
@@ -1194,7 +1300,6 @@ async def analyze_eml_for_case(
         ),
         "message": "Analysis completed and finding saved to the case.",
     }
-
 
 # =========================================================
 # PHISHING URL DETECTION
@@ -1387,11 +1492,11 @@ def predict_fake_profile(request: ProfileRequest):
 # =========================================================
 # FAKE SOCIAL MEDIA PROFILE - CSV BATCH ANALYSIS
 # =========================================================
-
 @app.post("/api/fake-profile/cases/{case_id}/analyze-csv")
 async def analyze_fake_profiles_csv(
     case_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    evidence_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1399,31 +1504,89 @@ async def analyze_fake_profiles_csv(
 
     try:
         # -------------------------------------------------
-        # 1. Validate uploaded CSV file
+        # 1. Validate input source
         # -------------------------------------------------
 
-        if not file.filename or not file.filename.lower().endswith(".csv"):
+        # Exactly one input source must be provided:
+        # - New uploaded CSV
+        # - Existing case evidence
+
+        if (file is None and evidence_id is None) or (
+            file is not None and evidence_id is not None
+        ):
             raise HTTPException(
                 status_code=400,
-                detail="Please upload a valid CSV file.",
+                detail="Provide either a CSV file or an existing evidence ID, not both.",
             )
 
-        raw_data = await file.read(MAX_FILE_SIZE + 1)
-
-        if not raw_data:
-            raise HTTPException(
-                status_code=400,
-                detail="Uploaded CSV file is empty.",
-            )
-
-        if len(raw_data) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail="CSV file size must not exceed 5 MB.",
-            )
+        filename = ""
+        raw_data = b""
 
         # -------------------------------------------------
-        # 2. Read CSV file
+        # 2A. Handle newly uploaded CSV
+        # -------------------------------------------------
+
+        if file is not None:
+
+            if not file.filename or not file.filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please upload a valid CSV file.",
+                )
+
+            filename = Path(
+                file.filename.replace("\\", "/")
+            ).name
+
+            raw_data = await file.read(MAX_FILE_SIZE + 1)
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Uploaded CSV file is empty.",
+                )
+
+            if len(raw_data) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail="CSV file size must not exceed 5 MB.",
+                )
+
+        # -------------------------------------------------
+        # 2B. Handle existing case evidence
+        # -------------------------------------------------
+
+        elif evidence_id is not None:
+
+            raw_data, filename = get_verified_case_evidence(
+                db=db,
+                case_id=case_id,
+                evidence_id=evidence_id,
+                user_id=current_user.id,
+                max_size=MAX_FILE_SIZE,
+                allowed_extensions={".csv"},
+            )
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Selected evidence file is empty.",
+                )
+
+            if len(raw_data) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail="CSV file size must not exceed 5 MB.",
+                )
+
+            if not filename or not filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Selected evidence is not a valid CSV file.",
+                )
+
+        # -------------------------------------------------
+        # 3. Read CSV file
         # -------------------------------------------------
 
         try:
@@ -1452,7 +1615,7 @@ async def analyze_fake_profiles_csv(
             )
 
         # -------------------------------------------------
-        # 3. Validate CSV columns
+        # 4. Validate CSV columns
         # -------------------------------------------------
 
         expected_columns = set(ProfileRequest.model_fields.keys())
@@ -1479,7 +1642,7 @@ async def analyze_fake_profiles_csv(
             )
 
         # -------------------------------------------------
-        # 4. Validate model classes
+        # 5. Validate model classes
         # -------------------------------------------------
 
         model_classes = list(profile_model.classes_)
@@ -1495,7 +1658,7 @@ async def analyze_fake_profiles_csv(
         results = []
 
         # -------------------------------------------------
-        # 5. Process every profile
+        # 6. Process every profile
         # -------------------------------------------------
 
         string_fields = {
@@ -1514,7 +1677,7 @@ async def analyze_fake_profiles_csv(
                 # Convert CSV row into dictionary.
                 profile_data = row.to_dict()
 
-                # FIX: Normalize missing CSV values.
+                # Normalize missing CSV values.
                 # Empty string for fields expecting strings.
                 # None for other missing values.
 
@@ -1616,7 +1779,7 @@ async def analyze_fake_profiles_csv(
                 ) from exc
 
         # -------------------------------------------------
-        # 6. Calculate batch statistics
+        # 7. Calculate batch statistics
         # -------------------------------------------------
 
         total_profiles = len(results)
@@ -1649,7 +1812,7 @@ async def analyze_fake_profiles_csv(
         ]
 
         # -------------------------------------------------
-        # 7. Calculate combined severity
+        # 8. Calculate combined severity
         # -------------------------------------------------
 
         if not fake_confidences:
@@ -1673,11 +1836,11 @@ async def analyze_fake_profiles_csv(
                 severity = "LOW"
 
         # -------------------------------------------------
-        # 8. Save combined finding to investigation case
+        # 9. Save combined finding to investigation case
         # -------------------------------------------------
 
         filename = Path(
-            file.filename.replace("\\", "/")
+            filename.replace("\\", "/")
         ).name
 
         try:
@@ -1723,7 +1886,7 @@ async def analyze_fake_profiles_csv(
             ) from exc
 
         # -------------------------------------------------
-        # 9. Return batch analysis results
+        # 10. Return batch analysis results
         # -------------------------------------------------
 
         return {
@@ -1764,8 +1927,8 @@ async def analyze_fake_profiles_csv(
         ) from exc
 
     finally:
-        await file.close()
-
+        if file is not None:
+            await file.close()
 
 # =========================================================
 # SCAM & SPAM MESSAGE DETECTION
@@ -1819,6 +1982,10 @@ def predict_scam_spam_for_case(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # =====================================================
+    # 1. VALIDATE MESSAGE
+    # =====================================================
+
     text = request.text.strip()
 
     if not text:
@@ -1827,36 +1994,64 @@ def predict_scam_spam_for_case(
             detail="Message cannot be empty or whitespace only.",
         )
 
+    # =====================================================
+    # 2. MODEL PREDICTION
+    # =====================================================
+
     try:
         probabilities = scam_spam_model.predict_proba([text])[0]
         classes = list(scam_spam_model.classes_)
 
-        if 1 not in classes or 0 not in classes:
+        if 0 not in classes or 1 not in classes:
             raise ValueError("Expected model classes 0 and 1.")
 
         spam_class_index = classes.index(1)
         spam_probability = float(probabilities[spam_class_index])
+
+        if not 0.0 <= spam_probability <= 1.0:
+            raise ValueError("Invalid spam probability.")
+
         is_spam = spam_probability >= SCAM_SPAM_THRESHOLD
+
         prediction = "Spam" if is_spam else "Ham"
-        confidence = spam_probability if is_spam else 1 - spam_probability
+        predicted_class = 1 if is_spam else 0
+
+        confidence = (
+            spam_probability
+            if is_spam
+            else 1.0 - spam_probability
+        )
+
     except Exception as exc:
-        print(f"Case-linked scam/spam analysis failed: {type(exc).__name__}")
+        print(
+            f"Case-linked scam/spam prediction failed: "
+            f"{type(exc).__name__}"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Scam and spam analysis failed.",
         ) from exc
 
+    # =====================================================
+    # 3. DETERMINE SEVERITY
+    # =====================================================
+
     if is_spam:
-        if confidence >= 0.9:
+        if confidence >= 0.90:
             severity = "CRITICAL"
         elif confidence >= 0.75:
             severity = "HIGH"
-        elif confidence >= 0.5:
+        elif confidence >= 0.50:
             severity = "MEDIUM"
         else:
             severity = "LOW"
     else:
         severity = "LOW" if confidence >= 0.75 else "MEDIUM"
+
+    # =====================================================
+    # 4. SAVE FINDING TO INVESTIGATION CASE
+    # =====================================================
 
     try:
         finding = save_detection_finding(
@@ -1869,8 +2064,9 @@ def predict_scam_spam_for_case(
             confidence_score=confidence,
             severity=severity,
             analysis_details={
-                "class": 1 if is_spam else 0,
-                "spam_probability": spam_probability,
+                "class": predicted_class,
+                "spam_probability": round(spam_probability, 6),
+                "ham_probability": round(1.0 - spam_probability, 6),
                 "threshold": SCAM_SPAM_THRESHOLD,
                 "warning": (
                     "This is a model-based classification. A spam prediction "
@@ -1878,31 +2074,41 @@ def predict_scam_spam_for_case(
                 ),
             },
         )
+
     except ValueError as exc:
         raise HTTPException(
             status_code=404,
             detail="Case not found or access denied.",
         ) from exc
+
     except HTTPException:
         raise
+
     except Exception as exc:
-        print(f"Case-linked scam/spam analysis failed: {type(exc).__name__}")
+        print(
+            f"Case-linked scam/spam finding save failed: "
+            f"{type(exc).__name__}"
+        )
+
         raise HTTPException(
             status_code=500,
-            detail="Scam and spam analysis failed.",
+            detail="Failed to save scam and spam analysis finding.",
         ) from exc
+
+    # =====================================================
+    # 5. RETURN RESPONSE
+    # =====================================================
 
     return {
         "module": "Scam & Spam Message Detection",
         "case_id": case_id,
         "finding_id": finding.id,
         "prediction": prediction,
-        "class": 1 if is_spam else 0,
+        "class": predicted_class,
         "confidence": round(confidence, 4),
         "severity": severity,
         "message": "Analysis completed and finding saved to the case.",
     }
-
 
 # =========================================================
 # ANDROID APK MALWARE STATIC ANALYSIS
@@ -2252,38 +2458,107 @@ async def predict_image_forgery(file: UploadFile = File(...)):
 @app.post("/api/image-forgery/cases/{case_id}/predict")
 async def predict_image_forgery_for_case(
     case_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    evidence_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
     max_size = 10 * 1024 * 1024
 
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="A filename is required.")
-
-    extension = Path(file.filename).suffix.lower()
-    if extension not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail="Upload a JPG, JPEG, PNG, or WEBP image.",
-        )
-
     try:
-        raw_data = await file.read(max_size + 1)
-
-        if not raw_data:
+        # --------------------------------------------------
+        # 1. Validate input source
+        # Exactly one source: upload OR existing evidence
+        # --------------------------------------------------
+        if (file is None and evidence_id is None) or (
+            file is not None and evidence_id is not None
+        ):
             raise HTTPException(
                 status_code=400,
-                detail="The uploaded image is empty.",
+                detail="Provide either an image file or an existing evidence ID, not both.",
             )
 
-        if len(raw_data) > max_size:
-            raise HTTPException(
-                status_code=413,
-                detail="Image file must be 10 MB or smaller.",
+        filename = ""
+        raw_data = b""
+
+        # --------------------------------------------------
+        # 2. Handle new image upload
+        # --------------------------------------------------
+        if file is not None:
+            if not file.filename:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A filename is required.",
+                )
+
+            filename = Path(file.filename.replace("\\", "/")).name
+            extension = Path(filename).suffix.lower()
+
+            if extension not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Upload a JPG, JPEG, PNG, or WEBP image.",
+                )
+
+            raw_data = await file.read(max_size + 1)
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The uploaded image is empty.",
+                )
+
+            if len(raw_data) > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Image file must be 10 MB or smaller.",
+                )
+
+        # --------------------------------------------------
+        # 3. Handle existing case evidence
+        # Verify ownership, case association, extension,
+        # file size, safe object key and SHA-256.
+        # --------------------------------------------------
+        elif evidence_id is not None:
+            raw_data, filename = get_verified_case_evidence(
+                db=db,
+                case_id=case_id,
+                evidence_id=evidence_id,
+                user_id=current_user.id,
+                max_size=max_size,
+                allowed_extensions=allowed_extensions,
             )
 
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The selected image evidence is empty.",
+                )
+
+            if len(raw_data) > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Image file must be 10 MB or smaller.",
+                )
+
+            if not filename:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The selected evidence has no valid filename.",
+                )
+
+            extension = Path(filename).suffix.lower()
+
+            if extension not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Selected evidence is not a supported image file.",
+                )
+
+        # --------------------------------------------------
+        # 4. EXISTING IMAGE VALIDATION (UNCHANGED)
+        # --------------------------------------------------
         try:
             with Image.open(BytesIO(raw_data)) as image:
                 image.verify()
@@ -2295,41 +2570,83 @@ async def predict_image_forgery_for_case(
                     Image.Resampling.BILINEAR,
                 )
                 image_array = np.asarray(image, dtype=np.float32)
+
         except (UnidentifiedImageError, OSError, ValueError) as exc:
             raise HTTPException(
                 status_code=400,
                 detail="The uploaded file is not a valid supported image.",
             ) from exc
 
+        # --------------------------------------------------
+        # 5. EXISTING MODEL PREPROCESSING (UNCHANGED)
+        # --------------------------------------------------
         image_batch = np.expand_dims(image_array, axis=0)
-        image_forgery_model, preprocess_input = get_image_forgery_runtime()
+
+        image_forgery_model, preprocess_input = (
+            get_image_forgery_runtime()
+        )
+
         image_batch = preprocess_input(image_batch)
-        raw_prediction = image_forgery_model.predict(image_batch, verbose=0)
-        tampered_probability = float(np.asarray(raw_prediction).reshape(-1)[0])
+
+        # --------------------------------------------------
+        # 6. EXISTING MODEL PREDICTION (UNCHANGED)
+        # --------------------------------------------------
+        raw_prediction = image_forgery_model.predict(
+            image_batch,
+            verbose=0,
+        )
+
+        tampered_probability = float(
+            np.asarray(raw_prediction).reshape(-1)[0]
+        )
 
         if not np.isfinite(tampered_probability):
-            raise ValueError("Model returned a non-finite prediction.")
+            raise ValueError(
+                "Model returned a non-finite prediction."
+            )
 
         if not 0.0 <= tampered_probability <= 1.0:
-            raise ValueError("Model output is outside the expected probability range.")
+            raise ValueError(
+                "Model output is outside the expected probability range."
+            )
 
-        is_tampered = tampered_probability >= IMAGE_FORGERY_THRESHOLD
-        authentic_probability = 1.0 - tampered_probability
-        prediction = "Tampered" if is_tampered else "Authentic"
-        confidence = (
-            tampered_probability if is_tampered else authentic_probability
+        is_tampered = (
+            tampered_probability >= IMAGE_FORGERY_THRESHOLD
         )
+
+        authentic_probability = 1.0 - tampered_probability
+
+        prediction = (
+            "Tampered" if is_tampered else "Authentic"
+        )
+
+        confidence = (
+            tampered_probability
+            if is_tampered
+            else authentic_probability
+        )
+
     except HTTPException:
         raise
+
     except Exception as exc:
-        print(f"Case-linked image forgery analysis failed: {type(exc).__name__}: {exc}")
+        print(
+            f"Case-linked image forgery analysis failed: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Image forgery analysis failed.",
         ) from exc
-    finally:
-        await file.close()
 
+    finally:
+        if file is not None:
+            await file.close()
+
+    # ------------------------------------------------------
+    # 7. EXISTING SEVERITY LOGIC (UNCHANGED)
+    # ------------------------------------------------------
     if is_tampered:
         if confidence >= 0.9:
             severity = "CRITICAL"
@@ -2342,6 +2659,9 @@ async def predict_image_forgery_for_case(
     else:
         severity = "LOW" if confidence >= 0.75 else "MEDIUM"
 
+    # ------------------------------------------------------
+    # 8. EXISTING FINDING SAVING (UNCHANGED)
+    # ------------------------------------------------------
     try:
         finding = save_detection_finding(
             db=db,
@@ -2367,37 +2687,51 @@ async def predict_image_forgery_for_case(
                 ),
             },
         )
+
     except ValueError as exc:
         raise HTTPException(
             status_code=404,
             detail="Case not found or access denied.",
         ) from exc
+
     except HTTPException:
         raise
+
     except Exception as exc:
-        print(f"Unable to save case-linked image forgery finding: {type(exc).__name__}")
+        print(
+            f"Unable to save case-linked image forgery finding: "
+            f"{type(exc).__name__}"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Unable to save image forgery finding.",
         ) from exc
 
+    # ------------------------------------------------------
+    # 9. EXISTING RESPONSE STRUCTURE
+    # Works with both uploaded and existing evidence images.
+    # ------------------------------------------------------
     return {
         "module": "Image Forgery Detection",
         "case_id": case_id,
         "finding_id": finding.id,
-        "filename": Path(file.filename).name,
+        "filename": filename,
         "prediction": prediction,
         "class": 1 if is_tampered else 0,
         "confidence": round(confidence, 4),
         "severity": severity,
-        "tampered_probability": round(tampered_probability, 4),
-        "authentic_probability": round(authentic_probability, 4),
+        "tampered_probability": round(
+            tampered_probability, 4
+        ),
+        "authentic_probability": round(
+            authentic_probability, 4
+        ),
         "threshold": IMAGE_FORGERY_THRESHOLD,
         "input_size": list(IMAGE_FORGERY_INPUT_SIZE),
         "model": "Fine-tuned MobileNetV2",
         "message": "Analysis completed and finding saved to the case.",
     }
-
 
 # =========================================================
 # CHAT & EMAIL FORENSICS — SMS SPAM CLASSIFICATION
@@ -2545,7 +2879,205 @@ def predict_chat_email_forensics_for_case(
         "message": "Analysis completed and finding saved to the case.",
     }
 
+# =========================================================
+# CHAT & EMAIL FORENSICS — EXISTING TXT EVIDENCE ANALYSIS
+# =========================================================
 
+@app.post("/api/chat-email-forensics/cases/{case_id}/predict-evidence")
+def predict_chat_email_forensics_evidence(
+    case_id: int,
+    evidence_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # -----------------------------------------------------
+    # 1. Verify evidence ownership, case association,
+    #    file type, size, storage key and SHA-256 integrity
+    # -----------------------------------------------------
+    try:
+        raw_data, filename = get_verified_case_evidence(
+            db=db,
+            case_id=case_id,
+            evidence_id=evidence_id,
+            user_id=current_user.id,
+            max_size=10 * 1024 * 1024,  # 10 MB
+            allowed_extensions={".txt"},
+        )
+
+    except HTTPException:
+        raise
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        print(
+            f"Chat & Email evidence verification failed: "
+            f"{type(exc).__name__}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve or verify text evidence.",
+        ) from exc
+
+    # -----------------------------------------------------
+    # 2. Decode TXT evidence
+    # -----------------------------------------------------
+    try:
+        message_text = raw_data.decode("utf-8-sig").strip()
+
+    except UnicodeDecodeError:
+        try:
+            message_text = raw_data.decode("utf-8", errors="replace").strip()
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Unable to decode text evidence file.",
+            ) from exc
+
+    if not message_text:
+        raise HTTPException(
+            status_code=422,
+            detail="Text evidence file is empty.",
+        )
+
+    # -----------------------------------------------------
+    # 3. Run existing SMS spam classification model
+    # -----------------------------------------------------
+    try:
+        probabilities = chat_email_model.predict_proba(
+            [message_text]
+        )[0]
+
+        classes = list(chat_email_model.classes_)
+
+        prediction = int(
+            chat_email_model.predict([message_text])[0]
+        )
+
+        confidence = float(
+            probabilities[classes.index(prediction)]
+        )
+
+        spam_probability = float(
+            probabilities[classes.index(1)]
+        )
+
+        ham_probability = float(
+            probabilities[classes.index(0)]
+        )
+
+        label = chat_email_label_mapping.get(
+            str(prediction),
+            "Unknown"
+        )
+
+    except Exception as exc:
+        print(
+            f"Case-linked Chat & Email evidence analysis failed: "
+            f"{type(exc).__name__}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Chat and Email analysis failed.",
+        ) from exc
+
+    # -----------------------------------------------------
+    # 4. Determine severity
+    #    (Same logic as existing endpoint)
+    # -----------------------------------------------------
+    if prediction == 1:
+        if confidence >= 0.9:
+            severity = "CRITICAL"
+        elif confidence >= 0.75:
+            severity = "HIGH"
+        elif confidence >= 0.5:
+            severity = "MEDIUM"
+        else:
+            severity = "LOW"
+    else:
+        severity = "LOW" if confidence >= 0.75 else "MEDIUM"
+
+    # -----------------------------------------------------
+    # 5. Save detection finding to the case
+    # -----------------------------------------------------
+    try:
+        finding = save_detection_finding(
+            db=db,
+            case_id=case_id,
+            investigator=current_user,
+            module_name="Chat & Email Forensics",
+            input_summary=f"TXT evidence analyzed: {filename}",
+            prediction=label,
+            confidence_score=confidence,
+            severity=severity,
+            analysis_details={
+                "class": prediction,
+                "spam_probability": spam_probability,
+                "ham_probability": ham_probability,
+                "model": "TF-IDF + Logistic Regression",
+                "source": "Existing case evidence",
+                "evidence_id": evidence_id,
+                "filename": filename,
+                "analysis_scope": (
+                    "SMS spam classification using the UCI SMS Spam "
+                    "Collection dataset. Email-specific performance "
+                    "has not been evaluated."
+                ),
+                "warning": (
+                    "This is a model-based spam classification, not proof "
+                    "of fraud or malicious intent. Performance on emails "
+                    "and other message types has not been established."
+                ),
+            },
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Case not found or access denied.",
+        ) from exc
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        print(
+            f"Unable to save Chat & Email evidence finding: "
+            f"{type(exc).__name__}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to save Chat and Email finding.",
+        ) from exc
+
+    # -----------------------------------------------------
+    # 6. Return result
+    # -----------------------------------------------------
+    return {
+        "module": "Chat & Email Forensics",
+        "case_id": case_id,
+        "finding_id": finding.id,
+        "evidence_id": evidence_id,
+        "filename": filename,
+        "prediction": label,
+        "class": prediction,
+        "confidence": round(confidence, 4),
+        "severity": severity,
+        "spam_probability": round(spam_probability, 4),
+        "ham_probability": round(ham_probability, 4),
+        "model": "TF-IDF + Logistic Regression",
+        "message": (
+            "Existing text evidence analyzed successfully "
+            "and finding saved to the case."
+        ),
+    }
 # =========================================================
 # CREDIT CARD FRAUD DETECTION
 # =========================================================
@@ -2636,47 +3168,84 @@ def predict_credit_card_fraud(request: CreditCardFraudRequest):
         ),
     }
 
+
 @app.post("/api/credit-card-fraud/cases/{case_id}/analyze-csv")
 async def analyze_credit_card_fraud_csv_for_case(
     case_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    evidence_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     max_size = 5 * 1024 * 1024
-
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a CSV file.",
-        )
+    allowed_extensions = {".csv"}
 
     try:
-        raw_data = await file.read(max_size + 1)
-
-        if not raw_data:
+        # --------------------------------------------------
+        # 1. Validate input source
+        # Exactly one of file or evidence_id must be provided.
+        # --------------------------------------------------
+        if (file is None) == (evidence_id is None):
             raise HTTPException(
                 status_code=400,
-                detail="The uploaded CSV file is empty.",
+                detail="Provide either a CSV upload or an existing evidence ID, not both.",
             )
 
-        if len(raw_data) > max_size:
-            raise HTTPException(
-                status_code=413,
-                detail="CSV file must be 5 MB or smaller.",
+        # --------------------------------------------------
+        # 2. Load CSV bytes from upload OR existing evidence
+        # --------------------------------------------------
+        if file is not None:
+            if not file.filename or not file.filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please upload a CSV file.",
+                )
+
+            raw_data = await file.read(max_size + 1)
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The uploaded CSV file is empty.",
+                )
+
+            if len(raw_data) > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail="CSV file must be 5 MB or smaller.",
+                )
+
+            source_filename = Path(
+                file.filename.replace("\\", "/")
+            ).name
+
+        else:
+            # Verify evidence ownership, case association,
+            # file extension, size, storage key and SHA-256.
+            raw_data, source_filename = get_verified_case_evidence(
+                db=db,
+                case_id=case_id,
+                evidence_id=evidence_id,
+                user_id=current_user.id,
+                max_size=max_size,
+                allowed_extensions=allowed_extensions,
             )
 
-        # Parse CSV.
+        # --------------------------------------------------
+        # 3. Parse CSV
+        # --------------------------------------------------
         try:
             dataframe = pd.read_csv(
                 BytesIO(raw_data),
                 encoding="utf-8-sig",
             )
+
         except pd.errors.EmptyDataError as exc:
             raise HTTPException(
                 status_code=400,
                 detail="The CSV file contains no data or column headers.",
             ) from exc
+
         except (pd.errors.ParserError, UnicodeDecodeError) as exc:
             raise HTTPException(
                 status_code=400,
@@ -2689,7 +3258,9 @@ async def analyze_credit_card_fraud_csv_for_case(
                 detail="The CSV file must contain at least one transaction.",
             )
 
-        # Normalize column names.
+        # --------------------------------------------------
+        # 4. Normalize column names
+        # --------------------------------------------------
         dataframe.columns = [
             str(column).strip()
             for column in dataframe.columns
@@ -2718,14 +3289,15 @@ async def analyze_credit_card_fraud_csv_for_case(
                 },
             )
 
-        # Select only the 30 model features in the original training order.
-        # Optional Class and other extra columns are excluded.
+        # --------------------------------------------------
+        # 5. Select the 30 model features in training order
+        # --------------------------------------------------
         input_dataframe = dataframe.loc[
             :,
             expected_features,
         ].copy()
 
-        # Convert all required features into numerical values.
+        # Convert feature values to numeric.
         numeric_dataframe = input_dataframe.apply(
             pd.to_numeric,
             errors="coerce",
@@ -2735,7 +3307,7 @@ async def analyze_credit_card_fraud_csv_for_case(
             dtype=np.float64,
         )
 
-        # Reject missing, invalid, NaN, and infinite values.
+        # Reject missing, invalid, NaN and infinite values.
         invalid_positions = np.argwhere(
             ~np.isfinite(numeric_values)
         )
@@ -2761,7 +3333,9 @@ async def analyze_credit_card_fraud_csv_for_case(
                 },
             )
 
-        # Run the existing trained Random Forest model.
+        # --------------------------------------------------
+        # 6. Run the existing trained Random Forest model
+        # --------------------------------------------------
         probabilities = credit_card_fraud_model.predict_proba(
             numeric_dataframe
         )
@@ -2771,20 +3345,31 @@ async def analyze_credit_card_fraud_csv_for_case(
         fraud_probabilities = probabilities[:, classes.index(1)]
         legitimate_probabilities = probabilities[:, classes.index(0)]
 
-        # Use the threshold loaded from the existing configuration.
+        # Existing configured threshold.
         predictions = (
             fraud_probabilities >= CREDIT_CARD_FRAUD_THRESHOLD
         ).astype(int)
 
+        # --------------------------------------------------
+        # 7. Calculate batch statistics
+        # --------------------------------------------------
         total_transactions = len(predictions)
-        fraudulent_transactions = int(np.sum(predictions == 1))
-        legitimate_transactions = int(np.sum(predictions == 0))
+
+        fraudulent_transactions = int(
+            np.sum(predictions == 1)
+        )
+
+        legitimate_transactions = int(
+            np.sum(predictions == 0)
+        )
 
         fraud_percentage = (
             fraudulent_transactions / total_transactions
         ) * 100
 
-        # Construct transaction-level results.
+        # --------------------------------------------------
+        # 8. Transaction-level predictions
+        # --------------------------------------------------
         results = []
 
         for index in range(total_transactions):
@@ -2808,7 +3393,9 @@ async def analyze_credit_card_fraud_csv_for_case(
                 ),
             })
 
-        # Average confidence of the predicted class across the batch.
+        # --------------------------------------------------
+        # 9. Average predicted-class confidence
+        # --------------------------------------------------
         predicted_confidences = np.maximum(
             fraud_probabilities,
             legitimate_probabilities,
@@ -2818,7 +3405,9 @@ async def analyze_credit_card_fraud_csv_for_case(
             np.mean(predicted_confidences)
         )
 
-        # Determine the combined finding severity.
+        # --------------------------------------------------
+        # 10. Determine severity and overall prediction
+        # --------------------------------------------------
         if fraudulent_transactions > 0:
             highest_fraud_probability = float(
                 np.max(fraud_probabilities[predictions == 1])
@@ -2837,6 +3426,7 @@ async def analyze_credit_card_fraud_csv_for_case(
                 f"Fraud detected in {fraudulent_transactions} "
                 f"of {total_transactions} transactions"
             )
+
         else:
             severity = (
                 "LOW"
@@ -2849,7 +3439,9 @@ async def analyze_credit_card_fraud_csv_for_case(
                 f"among {total_transactions} transactions"
             )
 
-        # Save exactly ONE combined finding to the selected case.
+        # --------------------------------------------------
+        # 11. Save ONE combined finding to the case
+        # --------------------------------------------------
         finding = save_detection_finding(
             db=db,
             case_id=case_id,
@@ -2863,9 +3455,13 @@ async def analyze_credit_card_fraud_csv_for_case(
             severity=severity,
             analysis_details={
                 "analysis_type": "CSV batch analysis",
-                "filename": Path(
-                    file.filename.replace("\\", "/")
-                ).name,
+                "input_source": (
+                    "existing_case_evidence"
+                    if evidence_id is not None
+                    else "upload"
+                ),
+                "evidence_id": evidence_id,
+                "filename": source_filename,
                 "total_transactions": total_transactions,
                 "fraudulent_transactions": fraudulent_transactions,
                 "legitimate_transactions": legitimate_transactions,
@@ -2894,13 +3490,20 @@ async def analyze_credit_card_fraud_csv_for_case(
             },
         )
 
+        # --------------------------------------------------
+        # 12. Return response
+        # --------------------------------------------------
         return {
             "module": "Credit Card Fraud Detection",
             "case_id": case_id,
             "finding_id": finding.id,
-            "filename": Path(
-                file.filename.replace("\\", "/")
-            ).name,
+            "filename": source_filename,
+            "input_source": (
+                "existing_case_evidence"
+                if evidence_id is not None
+                else "upload"
+            ),
+            "evidence_id": evidence_id,
             "total_transactions": total_transactions,
             "fraudulent_transactions": fraudulent_transactions,
             "legitimate_transactions": legitimate_transactions,
@@ -2916,22 +3519,27 @@ async def analyze_credit_card_fraud_csv_for_case(
 
     except HTTPException:
         raise
+
     except ValueError as exc:
         raise HTTPException(
             status_code=404,
             detail="Case not found or access denied.",
         ) from exc
+
     except Exception as exc:
         print(
             "Credit card fraud CSV analysis failed:",
             type(exc).__name__,
         )
+
         raise HTTPException(
             status_code=500,
             detail="Credit card fraud CSV analysis failed.",
         ) from exc
+
     finally:
-        await file.close()
+        if file is not None:
+            await file.close()
 
 
 # =========================================================
@@ -3046,36 +3654,73 @@ def predict_network_intrusion(request: NetworkIntrusionRequest):
 
 
 
+
 @app.post("/api/network-intrusion/cases/{case_id}/analyze-csv")
 async def analyze_network_intrusion_csv_for_case(
     case_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    evidence_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     max_size = 5 * 1024 * 1024
 
-    if not file.filename or not file.filename.lower().endswith(".csv"):
+    # Require exactly one input source: uploaded file OR existing evidence.
+    if (file is None) == (evidence_id is None):
         raise HTTPException(
             status_code=400,
-            detail="Please upload a CSV file.",
+            detail="Provide either a CSV file upload or an existing evidence ID, but not both.",
         )
 
+    filename = None
+
     try:
-        raw_data = await file.read(max_size + 1)
-
-        if not raw_data:
-            raise HTTPException(
-                status_code=400,
-                detail="The uploaded CSV file is empty.",
+        # --------------------------------------------------
+        # SOURCE 1: EXISTING CASE EVIDENCE
+        # --------------------------------------------------
+        if evidence_id is not None:
+            raw_data, source_filename = get_verified_case_evidence(
+                db=db,
+                case_id=case_id,
+                evidence_id=evidence_id,
+                user_id=current_user.id,
+                max_size=max_size,
+                allowed_extensions={".csv"},
             )
 
-        if len(raw_data) > max_size:
-            raise HTTPException(
-                status_code=413,
-                detail="CSV file must be 5 MB or smaller.",
-            )
+            filename = source_filename
 
+        # --------------------------------------------------
+        # SOURCE 2: UPLOADED CSV FILE
+        # --------------------------------------------------
+        else:
+            if not file.filename or not file.filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please upload a CSV file.",
+                )
+
+            raw_data = await file.read(max_size + 1)
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The uploaded CSV file is empty.",
+                )
+
+            if len(raw_data) > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail="CSV file must be 5 MB or smaller.",
+                )
+
+            filename = Path(
+                file.filename.replace("\\", "/")
+            ).name
+
+        # --------------------------------------------------
+        # CSV PARSING
+        # --------------------------------------------------
         try:
             dataframe = pd.read_csv(
                 BytesIO(raw_data),
@@ -3098,6 +3743,9 @@ async def analyze_network_intrusion_csv_for_case(
                 detail="The CSV must contain at least one network connection.",
             )
 
+        # --------------------------------------------------
+        # COLUMN VALIDATION
+        # --------------------------------------------------
         dataframe.columns = [
             str(column).strip()
             for column in dataframe.columns
@@ -3110,11 +3758,13 @@ async def analyze_network_intrusion_csv_for_case(
             )
 
         expected_features = network_intrusion_features
+
         categorical_features = {
             "protocol_type",
             "service",
             "flag",
         }
+
         optional_label_columns = {
             "label",
             "class",
@@ -3122,8 +3772,8 @@ async def analyze_network_intrusion_csv_for_case(
             "target",
         }
 
-        # Ignore an optional ground-truth target column.
         supplied_columns = set(dataframe.columns)
+
         ignored_columns = sorted(
             supplied_columns.intersection(optional_label_columns)
         )
@@ -3160,14 +3810,19 @@ async def analyze_network_intrusion_csv_for_case(
                 },
             )
 
-        # Keep categorical values as strings and validate numeric fields.
+        # --------------------------------------------------
+        # FEATURE PREPROCESSING
+        # --------------------------------------------------
         input_dataframe = dataframe.loc[
             :,
             expected_features,
         ].copy()
 
         for feature in expected_features:
+
+            # Categorical feature validation
             if feature in categorical_features:
+
                 values = input_dataframe[feature]
 
                 invalid_mask = (
@@ -3177,7 +3832,9 @@ async def analyze_network_intrusion_csv_for_case(
 
                 if invalid_mask.any():
                     row_numbers = (
-                        np.flatnonzero(invalid_mask.to_numpy())[:10] + 2
+                        np.flatnonzero(
+                            invalid_mask.to_numpy()
+                        )[:10] + 2
                     ).tolist()
 
                     raise HTTPException(
@@ -3196,14 +3853,18 @@ async def analyze_network_intrusion_csv_for_case(
                     values.astype(str).str.strip()
                 )
 
+            # Numeric feature validation
             else:
+
                 numeric_values = pd.to_numeric(
                     input_dataframe[feature],
                     errors="coerce",
                 )
 
                 invalid_mask = ~np.isfinite(
-                    numeric_values.to_numpy(dtype=np.float64)
+                    numeric_values.to_numpy(
+                        dtype=np.float64
+                    )
                 )
 
                 if invalid_mask.any():
@@ -3225,18 +3886,25 @@ async def analyze_network_intrusion_csv_for_case(
 
                 input_dataframe[feature] = numeric_values
 
-        # Preserve the exact feature order expected by the trained model.
+        # Preserve model feature order.
         input_dataframe = input_dataframe.loc[
             :,
             expected_features,
         ]
 
+        # --------------------------------------------------
+        # MODEL PREDICTION
+        # --------------------------------------------------
         try:
-            probabilities = network_intrusion_model.predict_proba(
-                input_dataframe
+            probabilities = (
+                network_intrusion_model.predict_proba(
+                    input_dataframe
+                )
             )
 
-            classes = list(network_intrusion_model.classes_)
+            classes = list(
+                network_intrusion_model.classes_
+            )
 
             attack_probabilities = probabilities[
                 :,
@@ -3253,6 +3921,7 @@ async def analyze_network_intrusion_csv_for_case(
                 "Network intrusion CSV prediction failed:",
                 type(exc).__name__,
             )
+
             raise HTTPException(
                 status_code=500,
                 detail=(
@@ -3262,27 +3931,45 @@ async def analyze_network_intrusion_csv_for_case(
                 ),
             ) from exc
 
+        # --------------------------------------------------
+        # CLASSIFICATION
+        # --------------------------------------------------
         predictions = (
-            attack_probabilities >= NETWORK_INTRUSION_THRESHOLD
+            attack_probabilities
+            >= NETWORK_INTRUSION_THRESHOLD
         ).astype(int)
 
         total_connections = len(predictions)
-        attack_connections = int(np.sum(predictions == 1))
-        normal_connections = int(np.sum(predictions == 0))
+
+        attack_connections = int(
+            np.sum(predictions == 1)
+        )
+
+        normal_connections = int(
+            np.sum(predictions == 0)
+        )
 
         attack_percentage = (
             attack_connections / total_connections
         ) * 100
 
+        # --------------------------------------------------
+        # INDIVIDUAL RESULTS
+        # --------------------------------------------------
         results = []
 
         for index in range(total_connections):
-            is_attack = int(predictions[index]) == 1
+
+            is_attack = (
+                int(predictions[index]) == 1
+            )
 
             results.append({
                 "connection_index": index + 1,
                 "prediction": (
-                    "Potential Attack" if is_attack else "Normal"
+                    "Potential Attack"
+                    if is_attack
+                    else "Normal"
                 ),
                 "class": int(predictions[index]),
                 "attack_probability": round(
@@ -3295,6 +3982,9 @@ async def analyze_network_intrusion_csv_for_case(
                 ),
             })
 
+        # --------------------------------------------------
+        # CONFIDENCE & SEVERITY
+        # --------------------------------------------------
         predicted_confidences = np.maximum(
             attack_probabilities,
             normal_probabilities,
@@ -3305,24 +3995,35 @@ async def analyze_network_intrusion_csv_for_case(
         )
 
         if attack_connections > 0:
+
             highest_attack_probability = float(
-                np.max(attack_probabilities[predictions == 1])
+                np.max(
+                    attack_probabilities[
+                        predictions == 1
+                    ]
+                )
             )
 
             if highest_attack_probability >= 0.9:
                 severity = "CRITICAL"
+
             elif highest_attack_probability >= 0.75:
                 severity = "HIGH"
+
             elif highest_attack_probability >= 0.5:
                 severity = "MEDIUM"
+
             else:
                 severity = "LOW"
 
             prediction_label = (
-                f"Potential attacks detected in {attack_connections} "
-                f"of {total_connections} network connections"
+                f"Potential attacks detected in "
+                f"{attack_connections} of "
+                f"{total_connections} network connections"
             )
+
         else:
+
             severity = (
                 "LOW"
                 if average_confidence >= 0.75
@@ -3334,19 +4035,19 @@ async def analyze_network_intrusion_csv_for_case(
                 f"{total_connections} network connections"
             )
 
-        filename = Path(
-            file.filename.replace("\\", "/")
-        ).name
-
+        # --------------------------------------------------
+        # SAVE FINDING
+        # --------------------------------------------------
         try:
+
             finding = save_detection_finding(
                 db=db,
                 case_id=case_id,
                 investigator=current_user,
                 module_name="Network Intrusion Detection",
                 input_summary=(
-                    f"CSV batch analysis: {total_connections} "
-                    "network connections"
+                    f"CSV batch analysis: "
+                    f"{total_connections} network connections"
                 ),
                 prediction=prediction_label,
                 confidence_score=average_confidence,
@@ -3354,6 +4055,12 @@ async def analyze_network_intrusion_csv_for_case(
                 analysis_details={
                     "analysis_type": "CSV batch analysis",
                     "filename": filename,
+                    "input_source": (
+                        "existing_evidence"
+                        if evidence_id is not None
+                        else "uploaded_file"
+                    ),
+                    "evidence_id": evidence_id,
                     "total_connections": total_connections,
                     "attack_connections": attack_connections,
                     "normal_connections": normal_connections,
@@ -3371,15 +4078,15 @@ async def analyze_network_intrusion_csv_for_case(
                     ),
                     "ignored_label_columns": ignored_columns,
                     "severity_basis": (
-                        "Highest attack probability among connections "
-                        "classified as potential attacks."
+                        "Highest attack probability among "
+                        "connections classified as potential attacks."
                         if attack_connections > 0
                         else "Average predicted-class confidence."
                     ),
                     "warning": (
                         "Experimental decision-support output trained "
-                        "on KDD Cup 99. Performance on real-world network "
-                        "traffic may differ."
+                        "on KDD Cup 99. Performance on real-world "
+                        "network traffic may differ."
                     ),
                 },
             )
@@ -3389,27 +4096,42 @@ async def analyze_network_intrusion_csv_for_case(
                 status_code=404,
                 detail="Case not found or access denied.",
             ) from exc
+
         except HTTPException:
             raise
+
         except Exception as exc:
             print(
                 "Unable to save network intrusion CSV finding:",
                 type(exc).__name__,
             )
+
             raise HTTPException(
                 status_code=500,
                 detail="Unable to save network intrusion finding.",
             ) from exc
 
+        # --------------------------------------------------
+        # RESPONSE
+        # --------------------------------------------------
         return {
             "module": "Network Intrusion Detection",
             "case_id": case_id,
             "finding_id": finding.id,
             "filename": filename,
+            "input_source": (
+                "existing_evidence"
+                if evidence_id is not None
+                else "uploaded_file"
+            ),
+            "evidence_id": evidence_id,
             "total_connections": total_connections,
             "attack_connections": attack_connections,
             "normal_connections": normal_connections,
-            "attack_percentage": round(attack_percentage, 2),
+            "attack_percentage": round(
+                attack_percentage,
+                2,
+            ),
             "threshold": NETWORK_INTRUSION_THRESHOLD,
             "model": "Random Forest Classifier",
             "dataset": "KDD Cup 99, 10% subset",
@@ -3422,18 +4144,21 @@ async def analyze_network_intrusion_csv_for_case(
 
     except HTTPException:
         raise
+
     except Exception as exc:
         print(
             "Network intrusion CSV analysis failed:",
             type(exc).__name__,
         )
+
         raise HTTPException(
             status_code=500,
             detail="Network intrusion CSV analysis failed.",
         ) from exc
-    finally:
-        await file.close()
 
+    finally:
+        if file is not None:
+            await file.close()
 
 # =========================================================
 # SERVER LOG ANALYSIS
@@ -3633,52 +4358,103 @@ def predict_server_log_analysis(
             "Real-world performance requires independent evaluation."
         ),
     }
-
 # ---------------------------------------------------------
 # SERVER LOG CSV BATCH PREDICTION WITH CASE
+# UPLOAD CSV OR EXISTING CASE EVIDENCE
 # ---------------------------------------------------------
 
 @app.post("/api/server-log-analysis/cases/{case_id}/analyze-csv")
 async def analyze_server_log_csv_for_case(
     case_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    evidence_id: int | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     max_size = 5 * 1024 * 1024
 
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a CSV file.",
-        )
+    raw_data = None
+    filename = None
+    input_source = None
 
     try:
-        raw_data = await file.read(max_size + 1)
-
-        if not raw_data:
+        # -------------------------------------------------
+        # REQUIRE EXACTLY ONE INPUT SOURCE
+        # -------------------------------------------------
+        if (file is None) == (evidence_id is None):
             raise HTTPException(
                 status_code=400,
-                detail="The uploaded CSV file is empty.",
+                detail="Provide exactly one source: upload a CSV file or select existing evidence.",
             )
 
-        if len(raw_data) > max_size:
-            raise HTTPException(
-                status_code=413,
-                detail="CSV file must be 5 MB or smaller.",
+        # -------------------------------------------------
+        # SOURCE 1: DIRECT CSV UPLOAD
+        # -------------------------------------------------
+        if file is not None:
+
+            if not file.filename or not file.filename.lower().endswith(".csv"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please upload a CSV file.",
+                )
+
+            raw_data = await file.read(max_size + 1)
+
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The uploaded CSV file is empty.",
+                )
+
+            if len(raw_data) > max_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail="CSV file must be 5 MB or smaller.",
+                )
+
+            filename = Path(
+                file.filename.replace("\\", "/")
+            ).name
+
+            input_source = "upload"
+
+        # -------------------------------------------------
+        # SOURCE 2: EXISTING CASE EVIDENCE
+        # -------------------------------------------------
+        else:
+
+            raw_data, filename = get_verified_case_evidence(
+                db=db,
+                case_id=case_id,
+                evidence_id=evidence_id,
+                user_id=current_user.id,
+                max_size=max_size,
+                allowed_extensions={".csv"},
             )
 
-        # Read CSV
+            if not raw_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="The selected evidence CSV file is empty.",
+                )
+
+            input_source = "existing_evidence"
+
+        # -------------------------------------------------
+        # READ CSV
+        # -------------------------------------------------
         try:
             dataframe = pd.read_csv(
                 BytesIO(raw_data),
                 encoding="utf-8-sig",
             )
+
         except pd.errors.EmptyDataError as exc:
             raise HTTPException(
                 status_code=400,
                 detail="The CSV file contains no data or column headers.",
             ) from exc
+
         except (pd.errors.ParserError, UnicodeDecodeError) as exc:
             raise HTTPException(
                 status_code=400,
@@ -3691,7 +4467,9 @@ async def analyze_server_log_csv_for_case(
                 detail="The CSV must contain at least one HDFS block.",
             )
 
-        # Clean column names
+        # -------------------------------------------------
+        # CLEAN COLUMN NAMES
+        # -------------------------------------------------
         dataframe.columns = [
             str(column).strip()
             for column in dataframe.columns
@@ -3712,7 +4490,9 @@ async def analyze_server_log_csv_for_case(
             "target_label",
         }
 
-        # Ignore optional metadata and ground-truth labels
+        # -------------------------------------------------
+        # IGNORE OPTIONAL METADATA / LABEL COLUMNS
+        # -------------------------------------------------
         supplied_columns = set(dataframe.columns)
 
         ignored_columns = sorted(
@@ -3753,20 +4533,26 @@ async def analyze_server_log_csv_for_case(
                 },
             )
 
-        # Preserve BlockId separately for displaying results
+        # -------------------------------------------------
+        # PRESERVE BLOCK ID
+        # -------------------------------------------------
         block_ids = (
             dataframe["BlockId"].copy()
             if "BlockId" in dataframe.columns
             else None
         )
 
-        # Select only the 29 model features
+        # -------------------------------------------------
+        # SELECT THE 29 MODEL FEATURES
+        # -------------------------------------------------
         input_dataframe = dataframe.loc[
             :,
             expected_features,
         ].copy()
 
-        # Validate all numerical features
+        # -------------------------------------------------
+        # VALIDATE NUMERICAL FEATURES
+        # -------------------------------------------------
         for feature in expected_features:
 
             numeric_values = pd.to_numeric(
@@ -3803,13 +4589,17 @@ async def analyze_server_log_csv_for_case(
 
             input_dataframe[feature] = numeric_values
 
-        # Preserve exact model feature order
+        # -------------------------------------------------
+        # PRESERVE EXACT MODEL FEATURE ORDER
+        # -------------------------------------------------
         input_dataframe = input_dataframe.loc[
             :,
             expected_features,
         ]
 
-        # Run batch predictions
+        # -------------------------------------------------
+        # RUN BATCH PREDICTIONS
+        # -------------------------------------------------
         try:
             validate_server_log_model()
 
@@ -3840,7 +4630,9 @@ async def analyze_server_log_csv_for_case(
                 detail="The trained Server Log model could not process this CSV.",
             ) from exc
 
-        # Apply configured anomaly threshold
+        # -------------------------------------------------
+        # APPLY ANOMALY THRESHOLD
+        # -------------------------------------------------
         predictions = (
             anomaly_probabilities >= SERVER_LOG_THRESHOLD
         ).astype(int)
@@ -3859,7 +4651,9 @@ async def analyze_server_log_csv_for_case(
             anomaly_blocks / total_blocks
         ) * 100
 
-        # Calculate confidence for each predicted class
+        # -------------------------------------------------
+        # CALCULATE PREDICTION CONFIDENCE
+        # -------------------------------------------------
         predicted_confidences = np.where(
             predictions == 1,
             anomaly_probabilities,
@@ -3870,7 +4664,9 @@ async def analyze_server_log_csv_for_case(
             np.mean(predicted_confidences)
         )
 
-        # Prepare individual block results
+        # -------------------------------------------------
+        # PREPARE INDIVIDUAL BLOCK RESULTS
+        # -------------------------------------------------
         results = []
 
         for index in range(total_blocks):
@@ -3906,7 +4702,9 @@ async def analyze_server_log_csv_for_case(
                 ),
             })
 
-        # Determine overall severity
+        # -------------------------------------------------
+        # DETERMINE OVERALL SEVERITY
+        # -------------------------------------------------
         if anomaly_blocks > 0:
 
             highest_anomaly_probability = float(
@@ -3937,11 +4735,9 @@ async def analyze_server_log_csv_for_case(
                 f"{total_blocks} HDFS blocks"
             )
 
-        filename = Path(
-            file.filename.replace("\\", "/")
-        ).name
-
-        # Save one combined finding to investigation case
+        # -------------------------------------------------
+        # SAVE ONE COMBINED FINDING TO INVESTIGATION CASE
+        # -------------------------------------------------
         try:
             finding = save_detection_finding(
                 db=db,
@@ -3957,6 +4753,12 @@ async def analyze_server_log_csv_for_case(
                 severity=severity,
                 analysis_details={
                     "analysis_type": "CSV batch analysis",
+                    "input_source": input_source,
+                    "evidence_id": (
+                        evidence_id
+                        if input_source == "existing_evidence"
+                        else None
+                    ),
                     "filename": filename,
                     "total_blocks": total_blocks,
                     "anomaly_blocks": anomaly_blocks,
@@ -4008,12 +4810,20 @@ async def analyze_server_log_csv_for_case(
                 detail="Unable to save server log analysis finding.",
             ) from exc
 
-        # Return batch results
+        # -------------------------------------------------
+        # RETURN BATCH RESULTS
+        # -------------------------------------------------
         return {
             "module": "Server Log Analysis",
             "case_id": case_id,
             "finding_id": finding.id,
             "filename": filename,
+            "input_source": input_source,
+            "evidence_id": (
+                evidence_id
+                if input_source == "existing_evidence"
+                else None
+            ),
             "total_blocks": total_blocks,
             "anomaly_blocks": anomaly_blocks,
             "normal_blocks": normal_blocks,
@@ -4041,7 +4851,7 @@ async def analyze_server_log_csv_for_case(
 
     except Exception as exc:
         print(
-            "Server log CSV analysis failed:",
+            "Server Log CSV analysis failed:",
             type(exc).__name__,
         )
 
@@ -4051,4 +4861,6 @@ async def analyze_server_log_csv_for_case(
         ) from exc
 
     finally:
-        await file.close()
+        # Close only direct-upload file objects.
+        if file is not None:
+            await file.close()

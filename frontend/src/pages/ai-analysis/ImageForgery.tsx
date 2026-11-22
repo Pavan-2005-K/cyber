@@ -15,8 +15,10 @@ import {
 } from 'lucide-react'
 
 import { getCases, type Case } from '../../services/caseService'
+import { getEvidenceByCase } from '../../services/evidenceService'
 import {
   analyzeImageForgery,
+  analyzeImageForgeryEvidence,
   type ImageForgeryResponse,
 } from '../../services/aiAnalysisService'
 
@@ -26,6 +28,8 @@ import {
 
 const ACCEPTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+type InputMode = 'upload' | 'existing'
 
 // =========================================================
 // ERROR HANDLING
@@ -137,9 +141,18 @@ export default function ImageForgery() {
   const [cases, setCases] = useState<Case[]>([])
   const [caseId, setCaseId] = useState('')
 
-  // File state
+  // Input mode
+  const [inputMode, setInputMode] = useState<InputMode>('upload')
+
+  // Upload state
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
+
+  // Existing evidence state
+  const [evidenceList, setEvidenceList] = useState<any[]>([])
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState('')
+  const [isLoadingEvidence, setIsLoadingEvidence] = useState(false)
+  const [evidenceError, setEvidenceError] = useState('')
 
   // Result state
   const [result, setResult] = useState<ImageForgeryResponse | null>(null)
@@ -188,6 +201,55 @@ export default function ImageForgery() {
       active = false
     }
   }, [])
+
+  // =======================================================
+  // LOAD EXISTING IMAGE EVIDENCE WHEN CASE CHANGES
+  // =======================================================
+
+  useEffect(() => {
+    let active = true
+
+    setEvidenceList([])
+    setSelectedEvidenceId('')
+    setEvidenceError('')
+
+    if (!caseId || inputMode !== 'existing') {
+      setIsLoadingEvidence(false)
+      return
+    }
+
+    setIsLoadingEvidence(true)
+
+    getEvidenceByCase(Number(caseId))
+      .then((data) => {
+        if (!active) return
+
+        const imageEvidence = data.filter((item) => {
+          const extension = getExtension(item.original_filename || '')
+
+          return ACCEPTED_EXTENSIONS.includes(extension)
+        })
+
+        setEvidenceList(imageEvidence)
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setEvidenceError(
+            getApiErrorMessage(
+              error,
+              'Existing case evidence could not be loaded.',
+            ),
+          )
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingEvidence(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [caseId, inputMode])
 
   // =======================================================
   // PREVIEW CLEANUP
@@ -286,7 +348,7 @@ export default function ImageForgery() {
     event.preventDefault()
     setIsDragging(false)
 
-    if (isAnalyzing) return
+    if (isAnalyzing || inputMode !== 'upload') return
 
     selectFile(event.dataTransfer.files[0])
   }
@@ -308,23 +370,41 @@ export default function ImageForgery() {
       return
     }
 
-    if (!file) {
-      setFileError('Choose an image file to analyze.')
-      return
-    }
+    // Validate based on selected mode
+    if (inputMode === 'upload') {
+      if (!file) {
+        setFileError('Choose an image file to analyze.')
+        return
+      }
 
-    const validationError = validateFile(file)
+      const validationError = validateFile(file)
 
-    if (validationError) {
-      setFileError(validationError)
-      return
+      if (validationError) {
+        setFileError(validationError)
+        return
+      }
+    } else {
+      if (!selectedEvidenceId) {
+        setAnalysisError('Select an existing image evidence file.')
+        return
+      }
     }
 
     submissionLock.current = true
     setIsAnalyzing(true)
 
     try {
-      const analysis = await analyzeImageForgery(Number(caseId), file)
+      let analysis: ImageForgeryResponse
+
+      if (inputMode === 'upload' && file) {
+        analysis = await analyzeImageForgery(Number(caseId), file)
+      } else {
+        analysis = await analyzeImageForgeryEvidence(
+          Number(caseId),
+          Number(selectedEvidenceId),
+        )
+      }
+
       setResult(analysis)
     } catch (error) {
       setAnalysisError(
@@ -360,6 +440,7 @@ export default function ImageForgery() {
 
   function resetAnalysis() {
     removeFile()
+    setSelectedEvidenceId('')
     setResult(null)
   }
 
@@ -399,13 +480,16 @@ export default function ImageForgery() {
     (caseItem) => String(caseItem.id) === caseId,
   )
 
+  const selectedEvidence = evidenceList.find(
+    (item) => String(item.id) === selectedEvidenceId,
+  )
+
   // =======================================================
   // UI
   // =======================================================
 
   return (
     <section className="mx-auto max-w-6xl space-y-6 theme-text">
-
       {/* HEADER */}
 
       <header>
@@ -482,14 +566,9 @@ export default function ImageForgery() {
       ================================================= */}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+        {/* IMAGE ANALYSIS FORM */}
 
-        {/* IMAGE UPLOAD FORM */}
-
-        <form
-          onSubmit={handleSubmit}
-          className="theme-card p-5 sm:p-7"
-        >
-
+        <form onSubmit={handleSubmit} className="theme-card p-5 sm:p-7">
           {/* FORM HEADER */}
 
           <div className="flex items-start gap-3">
@@ -503,13 +582,12 @@ export default function ImageForgery() {
               </h2>
 
               <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-                Select a case and a supported image file for analysis.
+                Select a case and choose a new image or existing case evidence.
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-5">
-
             {/* CASE SELECTOR */}
 
             <div className="space-y-2">
@@ -527,12 +605,9 @@ export default function ImageForgery() {
                   setCaseId(event.target.value)
                   setResult(null)
                   setAnalysisError('')
+                  setSelectedEvidenceId('')
                 }}
-                disabled={
-                  isLoadingCases ||
-                  cases.length === 0 ||
-                  isAnalyzing
-                }
+                disabled={isLoadingCases || cases.length === 0 || isAnalyzing}
                 required
                 className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:ring-4 focus:ring-purple-500/10 disabled:opacity-60"
               >
@@ -556,118 +631,269 @@ export default function ImageForgery() {
               )}
             </div>
 
-            {/* IMAGE FILE */}
+            {/* INPUT MODE SWITCH */}
 
             <div className="space-y-2">
               <span className="block text-sm font-medium text-[var(--text-primary)]">
-                Image file
+                Image source
               </span>
 
-              <div
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  if (!isAnalyzing) setIsDragging(true)
-                }}
-                onDragLeave={(event) => {
-                  if (event.currentTarget === event.target) {
-                    setIsDragging(false)
-                  }
-                }}
-                onDrop={handleDrop}
-                className={`rounded-xl border border-dashed p-4 transition sm:p-5 ${
-                  isDragging
-                    ? 'border-[#9b82e8] bg-purple-500/[0.08]'
-                    : 'border-[var(--border-color)] bg-[var(--bg-input)] hover:border-[#9b82e8]/50'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  id="image-forgery-file"
-                  type="file"
-                  accept={ACCEPTED_EXTENSIONS.join(',')}
-                  onChange={handleFileChange}
+              <div className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('upload')
+                    setSelectedEvidenceId('')
+                    setEvidenceError('')
+                    setAnalysisError('')
+                    setResult(null)
+                  }}
                   disabled={isAnalyzing}
-                  className="sr-only"
-                />
+                  className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    inputMode === 'upload'
+                      ? 'bg-[#9b82e8] text-white shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]'
+                  }`}
+                >
+                  Upload New Image
+                </button>
 
-                {!file ? (
-                  /* EMPTY UPLOAD */
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('existing')
+                    updatePreview(null)
+                    setFileError('')
+                    setAnalysisError('')
+                    setResult(null)
+                  }}
+                  disabled={isAnalyzing}
+                  className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    inputMode === 'existing'
+                      ? 'bg-[#9b82e8] text-white shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]'
+                  }`}
+                >
+                  Select Existing Evidence
+                </button>
+              </div>
+            </div>
 
-                  <label
-                    htmlFor="image-forgery-file"
-                    className="flex cursor-pointer flex-col items-center justify-center py-7 text-center"
-                  >
-                    <span className="flex size-12 items-center justify-center rounded-xl border border-purple-400/30 bg-purple-500/10 text-[#7954c8] dark:text-[#b6a1f5]">
-                      <ImageUp size={22} aria-hidden="true" />
-                    </span>
+            {/* UPLOAD MODE */}
 
-                    <span className="mt-3 text-sm font-medium text-[var(--text-primary)]">
-                      Drop an image here or{' '}
-                      <span className="text-[#7954c8] dark:text-[#b6a1f5]">
-                        browse files
+            {inputMode === 'upload' && (
+              <div className="space-y-2">
+                <span className="block text-sm font-medium text-[var(--text-primary)]">
+                  Image file
+                </span>
+
+                <div
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    if (!isAnalyzing) setIsDragging(true)
+                  }}
+                  onDragLeave={(event) => {
+                    if (event.currentTarget === event.target) {
+                      setIsDragging(false)
+                    }
+                  }}
+                  onDrop={handleDrop}
+                  className={`rounded-xl border border-dashed p-4 transition sm:p-5 ${
+                    isDragging
+                      ? 'border-[#9b82e8] bg-purple-500/[0.08]'
+                      : 'border-[var(--border-color)] bg-[var(--bg-input)] hover:border-[#9b82e8]/50'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    id="image-forgery-file"
+                    type="file"
+                    accept={ACCEPTED_EXTENSIONS.join(',')}
+                    onChange={handleFileChange}
+                    disabled={isAnalyzing}
+                    className="sr-only"
+                  />
+
+                  {!file ? (
+                    <label
+                      htmlFor="image-forgery-file"
+                      className="flex cursor-pointer flex-col items-center justify-center py-7 text-center"
+                    >
+                      <span className="flex size-12 items-center justify-center rounded-xl border border-purple-400/30 bg-purple-500/10 text-[#7954c8] dark:text-[#b6a1f5]">
+                        <ImageUp size={22} aria-hidden="true" />
                       </span>
-                    </span>
 
-                    <span className="mt-1.5 text-xs text-[var(--text-muted)]">
-                      JPG, JPEG, PNG, or WEBP · Maximum 10 MB
-                    </span>
-                  </label>
-                ) : (
-                  /* IMAGE PREVIEW */
-
-                  <div className="space-y-4">
-                    {previewUrl && (
-                      <div className="flex max-h-80 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-elevated)]">
-                        <img
-                          src={previewUrl}
-                          alt={`Selected image preview: ${file.name}`}
-                          className="max-h-80 w-full object-contain"
-                        />
-                      </div>
-                    )}
-
-                    {/* FILE INFORMATION */}
-
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-card-hover)] text-[var(--text-secondary)]">
-                          <FileImage size={17} aria-hidden="true" />
+                      <span className="mt-3 text-sm font-medium text-[var(--text-primary)]">
+                        Drop an image here or{' '}
+                        <span className="text-[#7954c8] dark:text-[#b6a1f5]">
+                          browse files
                         </span>
+                      </span>
 
-                        <div className="min-w-0">
-                          <p className="break-all text-sm font-medium text-[var(--text-primary)]">
-                            {file.name}
-                          </p>
+                      <span className="mt-1.5 text-xs text-[var(--text-muted)]">
+                        JPG, JPEG, PNG, or WEBP · Maximum 10 MB
+                      </span>
+                    </label>
+                  ) : (
+                    /* IMAGE PREVIEW */
 
-                          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                            {formatFileSize(file.size)}
-                          </p>
+                    <div className="space-y-4">
+                      {previewUrl && (
+                        <div className="flex max-h-80 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-elevated)]">
+                          <img
+                            src={previewUrl}
+                            alt={`Selected image preview: ${file.name}`}
+                            className="max-h-80 w-full object-contain"
+                          />
                         </div>
+                      )}
+
+                      {/* FILE INFORMATION */}
+
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-card-hover)] text-[var(--text-secondary)]">
+                            <FileImage size={17} aria-hidden="true" />
+                          </span>
+
+                          <div className="min-w-0">
+                            <p className="break-all text-sm font-medium text-[var(--text-primary)]">
+                              {file.name}
+                            </p>
+
+                            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                              {formatFileSize(file.size)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* REMOVE FILE */}
+
+                        <button
+                          type="button"
+                          onClick={removeFile}
+                          disabled={isAnalyzing}
+                          className="theme-button inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition hover:border-red-400/30 hover:bg-red-400/[0.06] hover:text-red-600 dark:hover:text-red-300 disabled:opacity-50"
+                        >
+                          <X size={14} aria-hidden="true" />
+                          Remove
+                        </button>
                       </div>
-
-                      {/* REMOVE FILE */}
-
-                      <button
-                        type="button"
-                        onClick={removeFile}
-                        disabled={isAnalyzing}
-                        className="theme-button inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition hover:border-red-400/30 hover:bg-red-400/[0.06] hover:text-red-600 dark:hover:text-red-300 disabled:opacity-50"
-                      >
-                        <X size={14} aria-hidden="true" />
-                        Remove
-                      </button>
                     </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* EXISTING EVIDENCE MODE */}
+
+            {inputMode === 'existing' && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="image-forgery-evidence"
+                    className="block text-sm font-medium text-[var(--text-primary)]"
+                  >
+                    Existing image evidence
+                  </label>
+
+                  <select
+                    id="image-forgery-evidence"
+                    value={selectedEvidenceId}
+                    onChange={(event) => {
+                      setSelectedEvidenceId(event.target.value)
+                      setAnalysisError('')
+                      setResult(null)
+                    }}
+                    disabled={isLoadingEvidence || isAnalyzing || evidenceList.length === 0}
+                    className="theme-input w-full rounded-xl px-4 py-3 text-sm outline-none transition focus:border-[#9b82e8] focus:ring-4 focus:ring-purple-500/10 disabled:opacity-60"
+                  >
+                    <option value="">
+                      {isLoadingEvidence
+                        ? 'Loading evidence…'
+                        : evidenceList.length === 0
+                          ? 'No supported image evidence found'
+                          : 'Select an image evidence file'}
+                    </option>
+
+                    {evidenceList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.original_filename} ({formatFileSize(item.file_size)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* LOADING */}
+
+                {isLoadingEvidence && (
+                  <div className="flex items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3 text-xs text-[var(--text-secondary)]">
+                    <LoaderCircle size={15} className="animate-spin" />
+                    Loading case evidence…
+                  </div>
+                )}
+
+                {/* EVIDENCE ERROR */}
+
+                {evidenceError && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-3 py-3 text-xs text-red-600 dark:text-red-300"
+                  >
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                    <span>{evidenceError}</span>
+                  </div>
+                )}
+
+                {/* EMPTY STATE */}
+
+                {!isLoadingEvidence && !evidenceError && evidenceList.length === 0 && (
+                  <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-3 text-xs leading-relaxed text-amber-700 dark:text-amber-200">
+                    This case has no supported image evidence. Upload an image in
+                    the case Evidence section first, or switch to Upload New Image.
+                  </p>
+                )}
+
+                {/* SELECTED EVIDENCE DETAILS */}
+
+                {selectedEvidence && (
+                  <div className="rounded-xl border border-[#9b82e8]/20 bg-[#9b82e8]/[0.05] p-3">
+                    <div className="flex items-start gap-2">
+                      <FileImage
+                        size={17}
+                        className="mt-0.5 shrink-0 text-[#7954c8] dark:text-[#b6a1f5]"
+                      />
+
+                      <div className="min-w-0">
+                        <p className="break-all text-sm font-medium text-[var(--text-primary)]">
+                          {selectedEvidence.original_filename}
+                        </p>
+
+                        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                          {formatFileSize(selectedEvidence.file_size)}
+                        </p>
+
+                        {selectedEvidence.sha256_hash && (
+                          <p className="mt-2 break-all font-mono text-[10px] text-[var(--text-muted)]">
+                            SHA-256: {selectedEvidence.sha256_hash}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="mt-3 border-t border-[#9b82e8]/15 pt-2 text-[11px] text-[var(--text-muted)]">
+                      Stored evidence · Integrity verification performed by backend
+                    </p>
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* FORM BUTTONS */}
 
           <div className="mt-6 flex flex-col-reverse gap-3 border-t theme-divider pt-5 sm:flex-row sm:justify-end">
-
-            {(file || result) && (
+            {(file || selectedEvidenceId || result) && (
               <button
                 type="button"
                 onClick={resetAnalysis}
@@ -685,7 +911,8 @@ export default function ImageForgery() {
                 isAnalyzing ||
                 isLoadingCases ||
                 !caseId ||
-                !file
+                (inputMode === 'upload' ? !file : !selectedEvidenceId) ||
+                (inputMode === 'existing' && isLoadingEvidence)
               }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9b82e8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#8b72d9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-400/30 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             >
@@ -699,7 +926,11 @@ export default function ImageForgery() {
                 <ScanSearch size={16} aria-hidden="true" />
               )}
 
-              {isAnalyzing ? 'Analyzing image…' : 'Analyze image'}
+              {isAnalyzing
+                ? 'Analyzing image…'
+                : inputMode === 'existing'
+                  ? 'Analyze Existing Image'
+                  : 'Analyze image'}
             </button>
           </div>
         </form>
@@ -709,7 +940,6 @@ export default function ImageForgery() {
         ================================================= */}
 
         <aside className="space-y-4">
-
           {/* FORENSIC INFORMATION */}
 
           <div className="rounded-xl border border-purple-400/20 bg-purple-500/[0.045] p-5 sm:p-6">
@@ -763,10 +993,7 @@ export default function ImageForgery() {
       ================================================= */}
 
       {result && (
-        <section
-          aria-live="polite"
-          className="theme-card overflow-hidden"
-        >
+        <section aria-live="polite" className="theme-card overflow-hidden">
           {/* RESULT HEADER */}
 
           <div className="flex flex-col gap-4 border-b theme-divider p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
@@ -794,7 +1021,6 @@ export default function ImageForgery() {
           {/* RESULT CARDS */}
 
           <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
-
             {/* PREDICTION */}
 
             <div className="theme-card-secondary p-4">
